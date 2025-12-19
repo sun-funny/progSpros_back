@@ -96,7 +96,8 @@ def preprocess_data(df: pd.DataFrame, years: List[str], others_columns: List[str
     """Предварительная обработка данных"""
     # Сначала очищаем данные для специальных контрагентов
     mask = df['contragent'].isin(['Действующие потребители', 'Прочие потребители'])
-    df.loc[mask, others_columns] = ''
+    cols_to_clear = [c for c in others_columns if c != 'ver_real']
+    df.loc[mask, cols_to_clear] = ''
 
     # Затем преобразуем категории
     category_mappings = {
@@ -132,6 +133,8 @@ def preprocess_data(df: pd.DataFrame, years: List[str], others_columns: List[str
     for col, mapping in category_mappings.items():
         df[col] = df[columns_mappings[col]].replace(mapping).fillna('Ошибка')
 
+    df['_all_cleared'] = False
+    df.loc[mask, '_all_cleared'] = True
     return df
 
 
@@ -264,9 +267,10 @@ def sort_subgroup(df: pd.DataFrame) -> pd.DataFrame:
     )
 def process_ver_real_level2_groups(df: pd.DataFrame, years: List[str], others_columns: List[str],
                                    agg_dict: Dict[str, str], styles: Dict, result: List, otrasl_total: str) -> None:
-    """Обработка групп по ver_real_level2 с выводом сумм"""
+
     for level_name, group in df.groupby('ver_real_level2'):
-        # Приводим названия для стиля s04
+
+        # Заголовок группы
         display_name = level_name
         if level_name == "действующие потребители":
             display_name = "Действующие потребители"
@@ -274,28 +278,58 @@ def process_ver_real_level2_groups(df: pd.DataFrame, years: List[str], others_co
             display_name = "Ожидаемые потребители"
         elif level_name == "потенциальные потребители":
             display_name = "Потенциальные потребители"
-        # Вычисляем суммы для группы
-        group_sum = group.groupby(['ver_real_level2']).agg(agg_dict).reset_index().iloc[0]
 
-        # Добавляем заголовок с суммами с стилем s04 для ver_real_level2
+        group_sum = (
+            group
+            .groupby(['ver_real_level2'])
+            .agg(agg_dict)
+            .reset_index()
+            .iloc[0]
+        )
+
         result.append({
             'contragent': display_name,
             **{col: '' for col in others_columns},
-            **{f'y{y}': safe_float(safe_getattr(group_sum, f'y{y}', 0)) for y in years},
-            'prirost': safe_float(safe_getattr(group_sum, 'prirost', 0)),
-            'style': 's04'  # Стиль s04 для ver_real_level2
+            **{f'y{y}': safe_float(getattr(group_sum, f'y{y}', 0)) for y in years},
+            'prirost': safe_float(getattr(group_sum, 'prirost', 0)),
+            'style': 's04'
         })
 
-        # Добавляем детализированные строки
-        subgroup = (
-            group.groupby(['contragent'] + others_columns)
-            .agg(agg_dict)
-            .reset_index()
-        )
-        subgroup = sort_subgroup(subgroup)
+        # ===== РАЗДЕЛЕНИЕ =====
+        normal = group[~group['_all_cleared']]
+        cleared = group[group['_all_cleared']]
 
-        for row in subgroup.itertuples():
-            result.append(create_detailed_row(row, years, others_columns))
+        # ===== 1. ОБЫЧНЫЕ СТРОКИ (СВЕРХУ) =====
+        if not normal.empty:
+            subgroup = (
+                normal
+                .groupby(['contragent'] + others_columns)
+                .agg(agg_dict)
+                .reset_index()
+            )
+
+            subgroup = sort_subgroup(subgroup)
+
+            for row in subgroup.itertuples():
+                result.append(create_detailed_row(row, years, others_columns))
+
+        # ===== 2. ЗАЧИЩЕННЫЕ (ВСЕГДА ВНИЗУ) =====
+        if not cleared.empty:
+            collapsed = (
+                cleared
+                .groupby(['contragent'], dropna=False)
+                .agg(agg_dict)
+                .reset_index()
+            )
+
+            for row in collapsed.itertuples():
+                result.append({
+                    'contragent': row.contragent,
+                    **{col: '' for col in others_columns},  # ver_real = ''
+                    **{f'y{y}': safe_float(getattr(row, f'y{y}')) for y in years},
+                    'prirost': safe_float(row.prirost),
+                    'style': 's041'
+                })
 
 def safe_getattr(obj, attr, default=0):
     """Безопасное получение атрибута объекта"""
