@@ -2,11 +2,9 @@
 from decimal import Decimal
 
 from sqlalchemy import inspect
-from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, FedState, Regions, GroupPost, StPotr, StGaz, PG, Dogovor, TU
-
-from progSpros_back.config_ps import format_strings
-from progSpros_back.config_ps import Config
+from progSpros_back.database_ps import db
 from flask import g
+from progSpros_back.functions.query_functions_ps import mapping_query
 
 def create_filter_params(request):
     """
@@ -189,7 +187,18 @@ def sum_prirost(data, sum_param):
             sum_param = float(row.sum_par)
 
     return sum_param
- 
+
 def set_db_connection():
     return g.session
+
+def mapping(map):
+    # db = set_db_connection()
+    base_query = db.query(map)
+    query = mapping_query(base_query, map)
+
+    result = {}
+    for row in query:
+        if row.id not in result:
+            result[row.id] = row.name
+    return result
 

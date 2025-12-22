@@ -2,7 +2,7 @@ import datetime
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 # Import the database session
-from progSpros_back.database_ps import cache, errorhandler
+from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.query_functions_ps import year_query, yearto_query
 from progSpros_back.functions.utility_functions_ps import set_db_connection
 from progSpros_back.model.db_models_ps import PSDATA
@@ -20,7 +20,7 @@ class YearDATA(Resource):
         Возвращает регионы в зависимости от выбранного округа
         """
         try:
-            db = set_db_connection()
+            #db = set_db_connection()
             # Определите базовый запрос с помощью динамических фильтров
             base_query = db.query(PSDATA)
 

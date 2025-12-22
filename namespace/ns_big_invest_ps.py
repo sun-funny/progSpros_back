@@ -4,12 +4,13 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 # Import the database session
-from progSpros_back.database_ps import cache, errorhandler
+from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
-from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, set_db_connection
-from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr
-from progSpros_back.model.mappings_ps import otr_mapping, vers_mapping, grpost_mapping, fo_mapping, region_mapping, yn_mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, set_db_connection, mapping
+from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
+    Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn
+from progSpros_back.model.mappings_ps import yn_mapping
 
 # Define the namespace
 ns_big_invest_ps = Namespace('BigInvest', description='Крупные инвестиционные проекты')
@@ -42,14 +43,12 @@ class ClearSession(Resource):
 class BigInvest(Resource):
     def get(self):
         """
-        Возвращает обратно данные для карты
-
+        Возвращает данные для карты
         Аргументы:
-            - принимает аргумент global_filters из /get_basic_filters
             - принимает аргументы yearfrom, yearto
         """
         try:
-            db = set_db_connection()
+            #db = set_db_connection()
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
             # Если не заданы глобальные параметры, взять их из session
@@ -59,6 +58,13 @@ class BigInvest(Resource):
             # Определите базовый запрос с помощью динамических фильтров
             base_query = db.query(Prirost)
             base_query = apply_dynamic_filters(base_query, Prirost, filter_params, db, reference_models)
+
+            # Мэппинги из справочников
+            otr_mapping = mapping(Otrasl)
+            vers_mapping = mapping(VersProgn)
+            grpost_mapping = mapping(GroupPost)
+            fo_mapping = mapping(FedState)
+            region_mapping = mapping(Regions)
 
             yearfrom = request.args.get('yearfrom', 2023, type=int)
             yearto = request.args.get('yearto', 2034, type=int)
@@ -120,9 +126,6 @@ class BigInvest(Resource):
             if infr:
                 base_query = base_query.filter((Prirost.tab_infr_d314_ids.in_(mapped_infr)))
                 from sqlalchemy.dialects import postgresql
-
-                # This will print the query with parameters inline
-                print(base_query.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
 
             # Продолжить создавать основной запрос
             query = big_invest_query_potr(base_query, Prirost, Otrasl, FedState, Regions, GroupPost, StPotr, StGaz, Infr,

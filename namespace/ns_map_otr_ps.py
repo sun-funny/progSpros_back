@@ -4,12 +4,13 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 # Import the database session
-from progSpros_back.database_ps import cache, errorhandler
+from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import fo_otrasl_query
-from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection
-from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Otrasl
-from progSpros_back.model.mappings_ps import otr_mapping, vers_mapping, grpost_mapping, fo_mapping, region_mapping, yn_mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection, \
+    mapping
+from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Otrasl, VersProgn, GroupPost, Regions
+from progSpros_back.model.mappings_ps import yn_mapping
 
 # Define the namespace
 ns_map_otr_ps = Namespace('MapOtrasl', description='Карта по отраслям')
@@ -40,7 +41,14 @@ class MapRF(Resource):
             - принимает аргументы yearfrom, yearto
         """
         try:
-            db = set_db_connection()
+            #db = set_db_connection()
+            # Мэппинги из справочников
+            otr_mapping = mapping(Otrasl)
+            vers_mapping = mapping(VersProgn)
+            grpost_mapping = mapping(GroupPost)
+            fo_mapping = mapping(FedState)
+            region_mapping = mapping(Regions)
+
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
             if not filter_params:

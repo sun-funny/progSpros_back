@@ -661,3 +661,17 @@ def yearto_query(base_query, tab_progn_spr_gaz_d314):
     ).filter(tab_progn_spr_gaz_d314.summ != 0
     )
     )
+
+# Запрос для мэппингов
+def mapping_query(base_query, tab):
+    return (base_query.with_entities(
+        tab.name.label('name'),
+        tab.id.label('id')
+    ).group_by(
+        tab.name,
+        tab.id
+    ).order_by(
+        tab.name
+    ).filter(tab.id.not_in([19])
+    )
+    )

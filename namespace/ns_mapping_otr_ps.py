@@ -4,10 +4,10 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 # Import the database session
-from progSpros_back.database_ps import cache, errorhandler
+from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.query_functions_ps import mapping_otrasl_query
-from progSpros_back.functions.utility_functions_ps import set_db_connection
-from progSpros_back.model.db_models_ps import reference_models, Otrasl
+from progSpros_back.functions.utility_functions_ps import set_db_connection, mapping
+from progSpros_back.model.db_models_ps import reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
 
 # Define the namespace
 ns_mapping_otr_ps = Namespace('MappingOtrasl', description='Отрасли')
@@ -22,7 +22,15 @@ class FORegionDATA(Resource):
         Возвращает отсортированные отрасли
         """
         try:
-            db = set_db_connection()
+            #db = set_db_connection()
+
+            # Мэппинги из справочников
+            otr_mapping = mapping(Otrasl)
+            vers_mapping = mapping(VersProgn)
+            grpost_mapping = mapping(GroupPost)
+            fo_mapping = mapping(FedState)
+            region_mapping = mapping(Regions)
+
             # Определите базовый запрос с помощью динамических фильтров
             base_query = db.query(Otrasl)
 

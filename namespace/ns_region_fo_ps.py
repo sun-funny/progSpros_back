@@ -4,12 +4,11 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 # Import the database session
-from progSpros_back.database_ps import cache, errorhandler
+from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import region_fo_query
-from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection
+from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Regions
-from progSpros_back.model.mappings_ps import region_mapping
 
 # Define the namespace
 ns_region_fo_ps = Namespace('RegionFO', description='Федеральные округа и Регионы')
@@ -26,7 +25,12 @@ class FORegionDATA(Resource):
         Возвращает регионы в зависимости от выбранного округа
         """
         try:
-            db = set_db_connection()
+            #db = set_db_connection()
+
+            # Мэппинги из справочников
+            fo_mapping = mapping(FedState)
+            region_mapping = mapping(Regions)
+
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
 

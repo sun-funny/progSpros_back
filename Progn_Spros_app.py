@@ -12,17 +12,12 @@ from flask import Flask, jsonify, request  # Основные классы и ф
 from sqlalchemy import select, distinct, not_, literal, func, and_  # Основные функции SQLAlchemy
 from werkzeug.exceptions import HTTPException, InternalServerError
 
-# Импорты для конкретного проекта
 from progSpros_back.model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
-
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters  # Функции отображения данных на графике
 from progSpros_back.functions.utility_functions_ps import create_filter_params  # Полезные функции
 from progSpros_back.functions.query_functions_ps import otrasl_query, all_data_query  # Функции запроса
-
 from progSpros_back.library_models_ps import ns_mod, year_grapth_model  # Library models
-
 from progSpros_back.config_ps import Config, changelog, secret_key  # Конфигурация и список изменений
-
 from progSpros_back.namespace.ns_rf_ps import ns_rf_ps
 from progSpros_back.namespace.ns_otrasl_ps import ns_otrasl_ps
 from progSpros_back.namespace.ns_map_otr_ps import ns_map_otr_ps
@@ -35,10 +30,8 @@ from progSpros_back.namespace.ns_big_invest_xls_ps import ns_big_invest_xls_ps
 from progSpros_back.namespace.ns_region_fo_ps import ns_region_fo_ps
 from progSpros_back.namespace.ns_years_ps import ns_years_ps
 from progSpros_back.namespace.ots_pr_spr.ns_ots_pr_spr_pot_ps import ns_ots_pr_spr_ps
-
-# Импорт сеанса работы с базой данных
+# Работа с базой данных
 from progSpros_back.database_ps import db, engine, cache
-
 # Импорт Flask-Restx
 from flask_restx import Api, Resource, Namespace  # Классы Flask-Restx для создания API
 

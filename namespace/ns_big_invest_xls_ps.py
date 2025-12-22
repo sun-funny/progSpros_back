@@ -4,6 +4,7 @@ import pandas as pd
 import json
 from openpyxl import Workbook
 from flask import jsonify, session, request, send_from_directory, send_file
+from progSpros_back.database_ps import db
 from flask_restx import Namespace, Resource
 from openpyxl import Workbook, load_workbook
 from sqlalchemy import column
@@ -12,9 +13,11 @@ from sqlalchemy import column
 from progSpros_back.database_ps import cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
-from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, set_db_connection
-from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr
-from progSpros_back.model.mappings_ps import otr_mapping, vers_mapping, grpost_mapping, fo_mapping, region_mapping, yn_mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
+    set_db_connection, mapping
+from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
+    Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn
+from progSpros_back.model.mappings_ps import yn_mapping
 
 # Define the namespace
 ns_big_invest_xls_ps = Namespace('BigInvestXls', description='Крупные инвестиционные проекты в Excel')
@@ -50,12 +53,19 @@ class BigInvestXls(Resource):
             - принимает аргументы yearfrom, yearto
         """
         try:
-            db = set_db_connection()
+            #db = set_db_connection()
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
             # Если не заданы глобальные параметры, взять их из session
             if not filter_params:
                 filter_params = session.get('filter_params')
+
+            # Мэппинги из справочников
+            otr_mapping = mapping(Otrasl)
+            vers_mapping = mapping(VersProgn)
+            grpost_mapping = mapping(GroupPost)
+            fo_mapping = mapping(FedState)
+            region_mapping = mapping(Regions)
 
             # Определите базовый запрос с помощью динамических фильтров
             base_query = db.query(Prirost)
