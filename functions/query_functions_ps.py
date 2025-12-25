@@ -125,17 +125,14 @@ def all_data_query(base_query, tab_progn_spr_gaz_d314, tab_contragent_d314, tab_
     )
 
 # Прогнозный спрос по отраслям
-def otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, yearfrom, yearto):
+def otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, yearfrom, yearto, date):
     """
     Генерирует запрос для "Прогнозный спрос по отраслям" на основе указанного столбца.
-
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
                 отфильтрованными по `ГОДАМ`.
     """
     return (base_query.with_entities(
@@ -145,6 +142,7 @@ def otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, ye
     ).join(
     tab_otrasl_economy_d314, tab_otrasl_economy_d314.id == tab_progn_spr_gaz_d314.tab_otrasl_economy_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year.in_([yearfrom, yearto])
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_otrasl_economy_d314.name,
         tab_progn_spr_gaz_d314.year
@@ -164,17 +162,14 @@ def query_prirost(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, o
     )
     )
 # Прогнозный спрос РФ топ-5 потребителей
-def top_potr_query(base_query, tab_progn_spr_gaz_d314, tab_contragent_d314, tab_ver_real_pr_d314, yearfrom, yearto):
+def top_potr_query(base_query, tab_progn_spr_gaz_d314, tab_contragent_d314, tab_ver_real_pr_d314, yearfrom, yearto, date):
     """
     Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
-
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
                 отфильтрованными по `ГОДАМ`.
     """
     return (base_query.with_entities(
@@ -187,6 +182,7 @@ def top_potr_query(base_query, tab_progn_spr_gaz_d314, tab_contragent_d314, tab_
     ).join(
     tab_ver_real_pr_d314, tab_ver_real_pr_d314.id == tab_progn_spr_gaz_d314.tab_ver_real_pr_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year.between(yearfrom, yearto)
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_progn_spr_gaz_d314.year,
         tab_ver_real_pr_d314.name,
@@ -198,19 +194,17 @@ def top_potr_query(base_query, tab_progn_spr_gaz_d314, tab_contragent_d314, tab_
         tab_contragent_d314.name
     )
     )
-# Sankey
-def sankey_query(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, tab_proizvoditel_d314, yearfrom, yearto):
-    """
-    Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
 
+# =======================  ЗАПРОСЫ ДЛЯ SANKEY ====================
+def sankey_query(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, tab_proizvoditel_d314, yearfrom, date):
+    """
+    Генерирует запрос для "Sankey" на основе указанного столбца.
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
-                отфильтрованными по `ГОДАМ`.
+                отфильтрованными по `году и дате загрузки`.
     """
     return (base_query.with_entities(
         tab_proizvoditel_d314.name.label('proizv'),
@@ -221,6 +215,7 @@ def sankey_query(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, tab_pr
     ).join(
     tab_group_post_d314, tab_group_post_d314.id == tab_progn_spr_gaz_d314.tab_group_post_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearfrom
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_proizvoditel_d314.name,
         tab_group_post_d314.name,
@@ -229,9 +224,9 @@ def sankey_query(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, tab_pr
         tab_group_post_d314.name,
     )
     )
-def sankey_query2(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, tab_group_post_d314, yearfrom, yearto):
+def sankey_query2(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, tab_group_post_d314, yearfrom, date):
     """
-    Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
+    Генерирует запрос для "Sankey" на основе указанного столбца.
 
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
@@ -240,7 +235,7 @@ def sankey_query2(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, t
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
 
-                отфильтрованными по `ГОДАМ`.
+                отфильтрованными по `году и дате загрузки`.
     """
     return (base_query.with_entities(
         tab_group_post_d314.name.label('grpost'),
@@ -251,6 +246,7 @@ def sankey_query2(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, t
     ).join(
     tab_group_post_d314, tab_group_post_d314.id == tab_progn_spr_gaz_d314.tab_group_post_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearfrom
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_otrasl_economy_d314.name,
         tab_group_post_d314.name,
@@ -260,18 +256,15 @@ def sankey_query2(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, t
     )
     )
 
-def sankey_query3(base_query, tab_progn_spr_gaz_d314, tab_proizvoditel_d314, yearfrom, yearto):
+def sankey_query3(base_query, tab_progn_spr_gaz_d314, tab_proizvoditel_d314, yearfrom, date):
     """
     Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
-
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
-                отфильтрованными по `ГОДАМ`.
+                отфильтрованными по `году и дате загрузки`.
     """
     return (base_query.with_entities(
         tab_proizvoditel_d314.name.label('proizv'),
@@ -279,24 +272,22 @@ def sankey_query3(base_query, tab_progn_spr_gaz_d314, tab_proizvoditel_d314, yea
     ).join(
     tab_proizvoditel_d314, tab_proizvoditel_d314.id == tab_progn_spr_gaz_d314.tab_proizvoditel_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearfrom
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_proizvoditel_d314.name
     ).order_by(
         tab_proizvoditel_d314.name,
     )
     )
-def sankey_query4(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, yearfrom, yearto):
+def sankey_query4(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, yearfrom, date):
     """
     Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
-
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
-                отфильтрованными по `ГОДАМ`.
+                отфильтрованными по `году и дате загрузки`.
     """
     return (base_query.with_entities(
         tab_group_post_d314.name.label('grpost'),
@@ -304,24 +295,22 @@ def sankey_query4(base_query, tab_progn_spr_gaz_d314, tab_group_post_d314, yearf
     ).join(
     tab_group_post_d314, tab_group_post_d314.id == tab_progn_spr_gaz_d314.tab_group_post_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearfrom
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_group_post_d314.name
     ).order_by(
         tab_group_post_d314.name
     )
     )
-def sankey_query5(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, yearfrom, yearto):
+def sankey_query5(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, yearfrom, date):
     """
     Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
-
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
-                отфильтрованными по `ГОДАМ`.
+                отфильтрованными по `году и дате загрузки`.
     """
     return (base_query.with_entities(
         tab_otrasl_economy_d314.name.label('otrasl'),
@@ -329,25 +318,21 @@ def sankey_query5(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, y
     ).join(
     tab_otrasl_economy_d314, tab_otrasl_economy_d314.id == tab_progn_spr_gaz_d314.tab_otrasl_economy_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearfrom
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_otrasl_economy_d314.name
     ).order_by(
         tab_otrasl_economy_d314.name
     )
     )
-# Карта по отраслям
-def fo_otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_otrasl_economy_d314, yearfrom, yearto):
-    """
-    Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
 
+# Карта по отраслям
+def fo_otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_otrasl_economy_d314, yearfrom, yearto, date):
+    """
+    Генерирует запрос для "Карта по отраслям" на основе указанного столбца.
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
-    Возвращается:
-        QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
-                отфильтрованными по `ГОДАМ`.
     """
     return (base_query.with_entities(
         tab_fo_d314.name.label('fo'),
@@ -358,6 +343,7 @@ def fo_otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_otrasl_
     ).join(
     tab_fo_d314, tab_fo_d314.id == tab_progn_spr_gaz_d314.tab_fo_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearto
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_fo_d314.name,
         tab_otrasl_economy_d314.name
@@ -368,18 +354,13 @@ def fo_otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_otrasl_
     )
     )
 # Карта по потребителям
-def fo_potr_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_contragent_d314, yearfrom, yearto):
+def fo_potr_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_contragent_d314, yearfrom, yearto, date):
     """
-    Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
-
+    Генерирует запрос для "Карта" на основе указанного столбца.
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
 
-    Возвращается:
-        QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
-                отфильтрованными по `ГОДАМ`.
     """
     return (base_query.with_entities(
         tab_fo_d314.name.label('fo'),
@@ -390,6 +371,7 @@ def fo_potr_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_contragen
     ).join(
     tab_fo_d314, tab_fo_d314.id == tab_progn_spr_gaz_d314.tab_fo_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearto
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).group_by(
         tab_fo_d314.name,
         tab_contragent_d314.name
@@ -548,17 +530,14 @@ def query_prirost_potr_table(base_query, tab_progn_spr_gaz_d314, tab_otrasl_econ
 
 def big_invest_query_potr(base_query, tab_prirost_d314, tab_otrasl_economy_d314, tab_fo_d314,
                      tab_region_d314, tab_group_post_d314, tab_status_potreb_d314, tab_start_gaz_d314, tab_infr_d314,
-                     tab_dogovor_visual_d314, tab_tu_visual_d314, yearfrom, yearto, tab_contragent_d314):
+                     tab_dogovor_visual_d314, tab_tu_visual_d314, yearfrom, yearto, tab_contragent_d314, date):
     """
     Генерирует запрос для "Крупные инвестиционные проекты" на основе указанного столбца.
-
     Аргументы:
         base_query (Запрос): Базовый объект запроса SQLAlchemy.
         progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
-
     Возвращается:
         QUERY: объект запроса SQLAlchemy, который группирует и суммирует поле "СУММА" по полям:
-
                 отфильтрованными по `ГОДАМ`.
     """
     return (base_query.with_entities(
@@ -595,6 +574,7 @@ def big_invest_query_potr(base_query, tab_prirost_d314, tab_otrasl_economy_d314,
         tab_contragent_d314, tab_contragent_d314.id == tab_prirost_d314.tab_contragent_d314_ids
     ).filter(tab_prirost_d314.yearfrom == yearfrom
     ).filter(tab_prirost_d314.yearto == yearto
+    ).filter(tab_prirost_d314.date == date
     ).group_by(
         tab_otrasl_economy_d314.name,
         tab_fo_d314.name,
@@ -638,9 +618,6 @@ def mapping_otrasl_query(base_query, tab_otrasl_economy_d314):
     )
     )
 def year_query(base_query, tab_progn_spr_gaz_d314):
-    """
-        запрос мэппинга по отраслям из таблицы tab_otrasl_economy_d314
-    """
     return (base_query.with_entities(
         tab_progn_spr_gaz_d314.year.label('year')
     ).group_by(

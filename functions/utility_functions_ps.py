@@ -1,6 +1,6 @@
 ﻿from urllib.parse import parse_qs
 from decimal import Decimal
-
+from datetime import datetime
 from sqlalchemy import inspect
 from progSpros_back.database_ps import db
 from flask import g
@@ -178,6 +178,17 @@ def substitute_in_json(data, mapping):
     else:
         return data
 
+def to_date(date_string):
+    try:
+        formats = ["%d.%m.%Y", "%m-%d-%Y", "%Y-%m-%d"]
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_string, fmt)
+            except ValueError:
+                continue
+        raise ValueError('{} is not valid date'.format(date_string))
+    except Exception as e:
+        raise ValueError('{} is not valid date: {}'.format(date_string, str(e)))
 
 def sum_prirost(data, sum_param):
     for row in data:

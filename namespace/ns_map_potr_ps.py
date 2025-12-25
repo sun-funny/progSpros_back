@@ -8,7 +8,7 @@ from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import fo_potr_query
 from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection, \
-    mapping
+    mapping, to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Contragent, Otrasl, VersProgn, \
     GroupPost, Regions
 from progSpros_back.model.mappings_ps import yn_mapping
@@ -28,7 +28,8 @@ ns_map_potr_ps = Namespace('MapPotr', description='Карта по потреб�
     'region': {'description': 'Регион', 'in': 'query', 'type': 'string'},
     'dogovor': {'description': 'Договор', 'in': 'query', 'type': 'string'},
     'tu': {'description': 'ТУ', 'in': 'query', 'type': 'string'},
-    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'}
+    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
+    'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
 })
 
 class MapRF(Resource):
@@ -62,6 +63,7 @@ class MapRF(Resource):
 
             yearfrom = request.args.get('yearfrom', 2023, type=int)
             yearto = request.args.get('yearto', 2034, type=int)
+            date = request.args.get('date', type=to_date)
 
             #Параметры Отрасль
             reverse_otr_mapping = {value: key for key, value in otr_mapping.items()}
@@ -120,7 +122,7 @@ class MapRF(Resource):
                 base_query = base_query.filter((PSDATA.tab_infr_d314_ids.in_(mapped_infr)))
 
             # Продолжить создавать основной запрос
-            query = fo_potr_query(base_query, PSDATA, FedState, Contragent, yearfrom, yearto)
+            query = fo_potr_query(base_query, PSDATA, FedState, Contragent, yearfrom, yearto, date)
             title = f"Карта"
             version_mapping = {
                 'Дальневосточный федеральный округ': 'DFO',
@@ -143,8 +145,6 @@ class MapRF(Resource):
                 "title": title,
                 "data": structure
             }
-
-            #            return jsonify(graph_data)
             response = jsonify(graph_data)
             response.headers.add('Access-Control-Allow-Origin', '*');
             return response

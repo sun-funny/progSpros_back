@@ -14,7 +14,7 @@ from progSpros_back.database_ps import cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
 from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
-    set_db_connection, mapping
+    set_db_connection, mapping, to_date
 from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
     Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn
 from progSpros_back.model.mappings_ps import yn_mapping
@@ -40,14 +40,14 @@ def get_xlsx_from_db(download_name):
     'region': {'description': 'Регион', 'in': 'query', 'type': 'string'},
     'dogovor': {'description': 'Договор', 'in': 'query', 'type': 'string'},
     'tu': {'description': 'ТУ', 'in': 'query', 'type': 'string'},
-    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'}
+    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
+    'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
 })
 
 class BigInvestXls(Resource):
     def get(self):
         """
-        Возвращает обратно данные для карты
-
+        Возвращает обратно данные для выгрузки в Excel крупных инвестиционных проектов
         Аргументы:
             - принимает аргумент global_filters из /get_basic_filters
             - принимает аргументы yearfrom, yearto
@@ -74,6 +74,7 @@ class BigInvestXls(Resource):
             yearfrom = request.args.get('yearfrom', 2023, type=int)
             yearto = request.args.get('yearto', 2034, type=int)
             sum_pr = request.args.get('sum_pr', -10000, type=int)
+            date = request.args.get('date', type=to_date)
 
             # Параметры Отрасль
             reverse_otr_mapping = {value: key for key, value in otr_mapping.items()}
@@ -133,7 +134,7 @@ class BigInvestXls(Resource):
 
             # Продолжить создавать основной запрос
             query = big_invest_query_potr(base_query, Prirost, Otrasl, FedState, Regions, GroupPost, StPotr, StGaz, Infr,
-                                     Dogovor, TU, yearfrom, yearto, Contragent)
+                                     Dogovor, TU, yearfrom, yearto, Contragent, date)
 
             title = f"Крупные инвестиционные проекты"
 
@@ -203,7 +204,6 @@ class BigInvestXls(Resource):
             # Передать файл Excel выгруженный на сервер
             name = 'output.xlsx'
             basic_path = '/opt/foresight/progSpros_back/'
-            #return send_from_directory(directory=f"{basic_path}", path=name, as_attachment=True)
 
             response = send_from_directory(directory=f"{basic_path}", path=name, as_attachment=True)
             response.headers.add('Access-Control-Allow-Origin', '*')

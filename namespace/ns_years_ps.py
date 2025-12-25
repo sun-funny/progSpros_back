@@ -16,9 +16,6 @@ ns_years_ps = Namespace('Years', description='Годы')
 
 class YearDATA(Resource):
     def get(self):
-        """
-        Возвращает регионы в зависимости от выбранного округа
-        """
         try:
             #db = set_db_connection()
             # Определите базовый запрос с помощью динамических фильтров

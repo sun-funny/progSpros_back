@@ -1,4 +1,7 @@
+from datetime import datetime
+
 from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint
+from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.ext.declarative import declarative_base
 
 # Создание основного класса
@@ -31,6 +34,7 @@ class PSDATA(Base):
     post = Column(Integer)  # Ключ к Поставщик
     tab_proizvoditel_d314_ids = Column(Integer)  # Ключ к Производитель
     tab_start_gaz_d314_ids = Column(Integer)  # Ключ к Начало отбора
+    date = Column(DATETIME)
 
 class Prirost(Base):
     __tablename__ = 'tab_prirost_d314'
@@ -52,6 +56,7 @@ class Prirost(Base):
     tab_start_gaz_d314_ids = Column(Integer)  # Ключ к Начало отбора
     yearfrom = Column(Integer)  # Ключ к Год
     yearto = Column(Integer)  # Ключ к Год
+    date = Column(DATETIME)
 
 class FedState(Base):
     __tablename__ = 'tab_fo_d314'

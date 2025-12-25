@@ -7,7 +7,8 @@ from flask_restx import Namespace, Resource
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
-from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, set_db_connection, mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
+    set_db_connection, mapping, to_date
 from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
     Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn
 from progSpros_back.model.mappings_ps import yn_mapping
@@ -37,7 +38,8 @@ class ClearSession(Resource):
     'region': {'description': 'Регион', 'in': 'query', 'type': 'string'},
     'dogovor': {'description': 'Договор', 'in': 'query', 'type': 'string'},
     'tu': {'description': 'ТУ', 'in': 'query', 'type': 'string'},
-    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'}
+    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
+    'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
     })
 
 class BigInvest(Resource):
@@ -69,6 +71,8 @@ class BigInvest(Resource):
             yearfrom = request.args.get('yearfrom', 2023, type=int)
             yearto = request.args.get('yearto', 2034, type=int)
             sum_pr = request.args.get('sum_pr', 0, type=int)
+
+            date = request.args.get('date', type=to_date)
 
             # Параметры Отрасль
             reverse_otr_mapping = {value: key for key, value in otr_mapping.items()}
@@ -129,15 +133,8 @@ class BigInvest(Resource):
 
             # Продолжить создавать основной запрос
             query = big_invest_query_potr(base_query, Prirost, Otrasl, FedState, Regions, GroupPost, StPotr, StGaz, Infr,
-                                     Dogovor, TU, yearfrom, yearto, Contragent)
-            
-            from sqlalchemy.dialects import postgresql
-
-            # This will print the query with parameters inline
-            print(query.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
-
+                                     Dogovor, TU, yearfrom, yearto, Contragent, date)
             title = f"Крупные инвестиционные проекты"
-
             # Создать структуру вывода для Json
             result = []
             i = 0
