@@ -1,5 +1,7 @@
 from flask import jsonify, session, request, send_from_directory, send_file
 from flask_restx import Namespace, Resource
+
+from SutPost_back.functions.utility_functions import to_date
 # Import the database session
 from progSpros_back.database_ps import cache, errorhandler
 from progSpros_back.model.mappings_ps import yn_mapping
@@ -55,7 +57,8 @@ class Columns(Resource):
     'tu': {'description': 'ТУ', 'in': 'query', 'type': 'string'},
     'shown_columns': {'description': 'Колонки', 'in': 'query', 'type': 'string'},
     'otrasl_total': {'description': 'Отрасли в итогах', 'in': 'query', 'type': 'string'},
-    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'}
+    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
+    'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
     })
 class OtsPrSpr(Resource):
     def get(self):
@@ -70,6 +73,7 @@ class OtsPrSpr(Resource):
             # year
             yearfrom = request.args.get('yearfrom', 2024, type=int)
             yearto = request.args.get('yearto', 2036, type=int)
+            date = request.args.get('date', type=to_date)
             sum_pr = request.args.get('sum_pr', None, type=float)
 
             # Колонки
@@ -82,7 +86,7 @@ class OtsPrSpr(Resource):
             otrasl_total = [company.strip() for item in request.args.getlist('otrasl_total', None) for company in
                              item.split(',')]
 
-            query = get_query(request, yearfrom, yearto)
+            query = get_query(request, yearfrom, yearto, date)
 
             result = get_data(query, shown_columns, otrasl_total, yearfrom, yearto, sum_pr)
 
@@ -116,6 +120,7 @@ class OtsPrSpr(Resource):
     'shown_columns': {'description': 'Колонки', 'in': 'query', 'type': 'string'},
     'otrasl_total': {'description': 'Отрасли в итогах', 'in': 'query', 'type': 'string'},
     'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
+    'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
     })
 
 class OtsPrSprXls(Resource):
@@ -127,6 +132,7 @@ class OtsPrSprXls(Resource):
 
             yearfrom = request.args.get('yearfrom', 2024, type=int)
             yearto = request.args.get('yearto', 2036, type=int)
+            date = request.args.get('date', type=to_date)
             fo_params = [fo.strip() for item in request.args.getlist('fo') for fo in item.split(',') if fo.strip()]
             otrasl_total = request.args.get('otrasl_total', 'Население', type=str)
             sum_pr = request.args.get('sum_pr', None, type=float)
@@ -137,7 +143,7 @@ class OtsPrSprXls(Resource):
                 shown_columns = ['otrasl', 'dogovor', 'tu']
             shown_columns = reverse_replace(shown_columns, shown_columns_map)
 
-            query = get_query(request, yearfrom, yearto)
+            query = get_query(request, yearfrom, yearto, date)
 
             result = get_data_exl(query, shown_columns, yearfrom, yearto, otrasl_total, sum_pr)
 

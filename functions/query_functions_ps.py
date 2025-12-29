@@ -152,12 +152,13 @@ def otrasl_query(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, ye
         (func.sum(tab_progn_spr_gaz_d314.summ).desc())
     )
     )
-def query_prirost(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, otrasl_name, year_par):
+def query_prirost(base_query, tab_progn_spr_gaz_d314, tab_otrasl_economy_d314, otrasl_name, year_par, date):
     return (base_query.with_entities(
                 func.sum(tab_progn_spr_gaz_d314.summ).label('sum_par')
     ).join(
     tab_otrasl_economy_d314, tab_otrasl_economy_d314.id == tab_progn_spr_gaz_d314.tab_otrasl_economy_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == year_par
+    ).filter(tab_progn_spr_gaz_d314.date == date
     ).filter(tab_otrasl_economy_d314.name == otrasl_name
     )
     )
@@ -624,6 +625,16 @@ def year_query(base_query, tab_progn_spr_gaz_d314):
         tab_progn_spr_gaz_d314.year
     ).order_by(
         tab_progn_spr_gaz_d314.year
+    )
+    )
+
+def date_query(base_query, tab_progn_spr_gaz_d314):
+    return (base_query.with_entities(
+        tab_progn_spr_gaz_d314.date.label('date')
+    ).group_by(
+        tab_progn_spr_gaz_d314.date
+    ).order_by(
+        tab_progn_spr_gaz_d314.date
     )
     )
 

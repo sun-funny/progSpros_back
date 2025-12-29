@@ -6,7 +6,7 @@ from progSpros_back.model.db_models_ps import Prirost, PSDATA, reference_models,
 from progSpros_back.model.mappings_ps import otr_mapping, vers_mapping, grpost_mapping, fo_mapping, region_mapping, yn_mapping
 from progSpros_back.database_ps import db
 
-def get_query(request, yearfrom, yearto):
+def get_query(request, yearfrom, yearto, date):
     try:
         # Получить фильтр-параметры из запроса
         filter_params = create_filter_params(request)
@@ -32,7 +32,8 @@ def get_query(request, yearfrom, yearto):
             )
             .filter(
                 PSDATA.year >= yearfrom,
-                PSDATA.year <= yearto
+                PSDATA.year <= yearto,
+                PSDATA.date == date
             )
             .group_by(
                 PSDATA.tab_fo_d314_ids,

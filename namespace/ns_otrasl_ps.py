@@ -131,13 +131,13 @@ class PrSprOtraslDATA(Resource):
                 sum_max = 0
                 if row.otrasl not in result:
                     if row.year == yearfrom:
-                        query_max = query_prirost(base_query, PSDATA, Otrasl, row.otrasl, yearto)
+                        query_max = query_prirost(base_query, PSDATA, Otrasl, row.otrasl, yearto, date)
 
                         sum_min = float(row.total_indicator)
                         sum_max = sum_prirost(query_max, 0)
 
                     elif row.year == yearto:
-                        query_min = query_prirost(base_query, PSDATA, Otrasl, row.otrasl, yearfrom)
+                        query_min = query_prirost(base_query, PSDATA, Otrasl, row.otrasl, yearfrom, date)
                         sum_max = float(row.total_indicator)
                         sum_min = sum_prirost(query_min, 0)
 
