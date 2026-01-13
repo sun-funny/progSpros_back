@@ -23,14 +23,6 @@ class FORegionDATA(Resource):
         """
         try:
             #db = set_db_connection()
-
-            # Мэппинги из справочников
-            otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
-            grpost_mapping = mapping(GroupPost)
-            fo_mapping = mapping(FedState)
-            region_mapping = mapping(Regions)
-
             # Определите базовый запрос с помощью динамических фильтров
             base_query = db.query(Otrasl)
 

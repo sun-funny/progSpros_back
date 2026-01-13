@@ -4,7 +4,8 @@ from datetime import datetime
 from sqlalchemy import inspect
 from progSpros_back.database_ps import db
 from flask import g
-from progSpros_back.functions.query_functions_ps import mapping_query
+from progSpros_back.functions.query_functions_ps import mapping_query, mapping_vers
+
 
 def create_filter_params(request):
     """

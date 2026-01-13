@@ -9,9 +9,9 @@ from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filte
 from progSpros_back.functions.query_functions_ps import sankey_query, sankey_query2, sankey_query3, sankey_query4, sankey_query5
 from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure, set_db_connection, \
     mapping, to_date
-from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, Contragent, FedState, Regions, \
-    GroupPost, StPotr, StGaz, PG, Dogovor, TU, Proizv, VersProgn
-from progSpros_back.model.mappings_ps import yn_mapping
+from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, FedState, Regions, \
+    GroupPost, Proizv
+from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
 
 # Define the namespace
 ns_sankey_ps = Namespace('Sankey', description='Sankey')
@@ -46,7 +46,6 @@ class Sankey(Resource):
 
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)

@@ -663,3 +663,16 @@ def mapping_query(base_query, tab):
     ).filter(tab.id.not_in([19])
     )
     )
+
+def mapping_vers(base_query, tab):
+    return (base_query.with_entities(
+        tab.name.label('short_name'),
+        tab.id.label('id')
+    ).group_by(
+        tab.name,
+        tab.id
+    ).order_by(
+        tab.name
+    ).filter(tab.id.not_in([19])
+    )
+    )

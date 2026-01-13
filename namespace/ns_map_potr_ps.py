@@ -9,9 +9,9 @@ from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filte
 from progSpros_back.functions.query_functions_ps import fo_potr_query
 from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection, \
     mapping, to_date
-from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Contragent, Otrasl, VersProgn, \
+from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Contragent, Otrasl, \
     GroupPost, Regions
-from progSpros_back.model.mappings_ps import yn_mapping
+from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
 
 # Define the namespace
 ns_map_potr_ps = Namespace('MapPotr', description='Карта по потребителям')
@@ -46,7 +46,6 @@ class MapRF(Resource):
 
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)

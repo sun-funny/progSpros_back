@@ -10,7 +10,7 @@ from progSpros_back.functions.query_functions_ps import fo_otrasl_query
 from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection, \
     mapping, to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Otrasl, VersProgn, GroupPost, Regions
-from progSpros_back.model.mappings_ps import yn_mapping
+from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
 
 # Define the namespace
 ns_map_otr_ps = Namespace('MapOtrasl', description='Карта по отраслям')
@@ -45,7 +45,6 @@ class MapRF(Resource):
             #db = set_db_connection()
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)

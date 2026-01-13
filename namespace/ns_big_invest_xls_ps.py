@@ -16,8 +16,8 @@ from progSpros_back.functions.query_functions_ps import big_invest_query_potr, q
 from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
     set_db_connection, mapping, to_date
 from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
-    Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn
-from progSpros_back.model.mappings_ps import yn_mapping
+    Contragent, StPotr, StGaz, Dogovor, TU, Infr
+from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
 
 # Define the namespace
 ns_big_invest_xls_ps = Namespace('BigInvestXls', description='Крупные инвестиционные проекты в Excel')
@@ -62,7 +62,6 @@ class BigInvestXls(Resource):
 
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)

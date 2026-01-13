@@ -11,7 +11,7 @@ from progSpros_back.functions.utility_functions_ps import create_filter_params, 
     mapping, to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, VersProgn, Contragent, GroupPost, Otrasl, \
     FedState, Regions
-from progSpros_back.model.mappings_ps import otr_mapping, vers_mapping, grpost_mapping, fo_mapping, region_mapping, yn_mapping
+from progSpros_back.model.mappings_ps import vers_mapping, yn_mapping
 
 # Define the namespace
 ns_rf_ps = Namespace('PRSRF', description='Прогноз спроса на газ в РФ')
@@ -46,7 +46,6 @@ class PrognSprosGazRF(Resource):
 
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)
@@ -123,6 +122,10 @@ class PrognSprosGazRF(Resource):
 
             # Продолжить создавать основной запрос
             queryPotr = top_potr_query(base_query, PSDATA, Contragent, VersProgn, yearfrom, yearto, date)
+
+            from sqlalchemy.dialects import postgresql
+            print(queryPotr.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+
             title = f"Прогноз спроса на газ в РФ, млрд куб. м"
 
             version_mapping = {

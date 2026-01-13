@@ -10,7 +10,7 @@ from progSpros_back.functions.query_functions_ps import otrasl_query, query_prir
 from progSpros_back.functions.utility_functions_ps import create_filter_params, sum_prirost, set_db_connection, mapping, \
     to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
-from progSpros_back.model.mappings_ps import yn_mapping
+from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
 
 # Define the namespace
 ns_otrasl_ps = Namespace('PrSprOtrasl', description='Прогноз спроса на газ по отраслям, млрд куб. м')
@@ -45,7 +45,6 @@ class PrSprOtraslDATA(Resource):
             #db = set_db_connection()
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
-            vers_mapping = mapping(VersProgn)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)
