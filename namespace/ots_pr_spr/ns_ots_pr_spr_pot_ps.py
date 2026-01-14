@@ -1,7 +1,7 @@
 from flask import jsonify, session, request, send_from_directory, send_file
 from flask_restx import Namespace, Resource
 
-from SutPost_back.functions.utility_functions import to_date
+from progSpros_back.functions.utility_functions_ps import to_date
 # Import the database session
 from progSpros_back.database_ps import cache, errorhandler
 from progSpros_back.model.mappings_ps import yn_mapping
