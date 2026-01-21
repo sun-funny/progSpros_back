@@ -2,9 +2,9 @@
 from collections import OrderedDict
 from decimal import Decimal
 from datetime import datetime
-from sqlalchemy import func, select, and_, distinct, or_, case
+from sqlalchemy import func, select, and_, distinct, or_, case, delete
 from flask import jsonify, session, request
-from flask_restx import Namespace, Resource
+from flask_restx import fields, Namespace, Resource
 
 # relimport
 
@@ -28,6 +28,22 @@ from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState
 
 # Define the namespace
 ns_fo_region_ps = Namespace('FORegion', description='Регионы и Федеральные округа')
+
+region_model = ns_fo_region_ps.model('Region', {
+    'name': fields.String(required=True, description='Region name'),
+})
+
+group_region_item_model = ns_fo_region_ps.model('GroupRegionItem', {
+    'group_id': fields.Integer(required=False, description='Existing group ID (for updates)', default=None),
+    'group_name': fields.String(required=True, description='Group name'),
+    'regions': fields.List(fields.String, required=True, description='List of region names in this group'),
+})
+
+group_regions_request_model = ns_fo_region_ps.model('GroupRegionsRequest', {
+    'fo_group': fields.List(fields.Nested(group_region_item_model), 
+                           required=True, 
+                           description='List of groups with their regions')
+})
 
 
 @ns_fo_region_ps.route('/fo-region')
@@ -142,6 +158,7 @@ class FORegionDATA(Resource):
         except Exception as e:
             ns_fo_region_ps.abort(*errorhandler(e))
 
+    @ns_fo_region_ps.expect(group_regions_request_model)
     def post(self):
         try:
             data = request.get_json()
@@ -162,23 +179,32 @@ class FORegionDATA(Resource):
                         # continue
                         raise ValueError('Missing group data')
                     
-                    regions_ids = [item.name for item in db.query(Regions).filter(Regions.name.in_(regions)
+                    regions_ids = [item.id for item in db.query(Regions).filter(Regions.name.in_(regions)
                                                             ).with_entities(Regions.id.label('id')).all()]
                     if len(regions_ids) == 0:
                         raise ValueError('Invalid regions')
                     
                     # Создаём группу (если нет)
                     if not group_id:
-                        group_region = GroupRegions(name=group_name)
+                        group_id = db.query(func.max(GroupRegions.id)).scalar()
+                        group_id = (group_id or 0) + 1
+                        group_region = GroupRegions(id=group_id, name=group_name)
                         db.add(group_region)
                         db.flush()
                     else:
-                        group_region =  db.query(GroupRegions).filter(GroupRegions.id == group_id).first()
+                        delete_stmt = delete(group_regions_relation).where(
+                            (group_regions_relation.c.id_group_region == group_id)
+                        )
+                        db.execute(delete_stmt)
+                        # group_region =  db.query(GroupRegions).filter(GroupRegions.id == group_id).first()
+                        # db.execute(group_regions_relation.filter(group_regions_relation.c.id_group_region == group_id
+                                                                #  ).filter(group_regions_relation.c.id_region.in_(regions_ids)).delete(synchronize_session='fetch'))
+                    # group_region =  db.query(GroupRegions).filter(GroupRegions.id == group_id).first()
                     
                     for id in regions_ids:
                         association_data = {
                             'id_region': id,
-                            'id_group_region': group_region.id,
+                            'id_group_region': group_id,
                             'date_added': datetime.now()
                         }
                         db.execute(group_regions_relation.insert().values(**association_data))
@@ -186,6 +212,7 @@ class FORegionDATA(Resource):
                     db.commit()
                 except Exception as e:
                     db.rollback()
+                    raise e
 
         except Exception as e:
             ns_fo_region_ps.abort(*errorhandler(e))
