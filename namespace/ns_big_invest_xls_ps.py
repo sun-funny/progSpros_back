@@ -10,7 +10,7 @@ from openpyxl import Workbook, load_workbook
 from sqlalchemy import column
 
 
-# relimport
+#relimport
 from database_ps import cache, errorhandler
 from functions.chart_data_functions_ps import apply_dynamic_filters
 from functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
@@ -20,11 +20,11 @@ from model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regi
     Contragent, StPotr, StGaz, Dogovor, TU, Infr
 from model.mappings_ps import yn_mapping, vers_mapping
 from database_ps import db
-# relimport
+#relimport
 
 
-# absimport
-''' # absimport
+#absimport
+''' #absimport
 # Import the database session
 from progSpros_back.database_ps import cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
@@ -35,7 +35,7 @@ from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl,
     Contragent, StPotr, StGaz, Dogovor, TU, Infr
 from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
 from progSpros_back.database_ps import db
-''' # absimport
+''' #absimport
 
 # Define the namespace
 ns_big_invest_xls_ps = Namespace('BigInvestXls', description='Крупные инвестиционные проекты в Excel')

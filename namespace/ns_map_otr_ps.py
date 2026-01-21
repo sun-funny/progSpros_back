@@ -4,7 +4,7 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 
-# relimport
+#relimport
 
 # Import the database session
 from database_ps import db, cache, errorhandler
@@ -15,10 +15,10 @@ from functions.utility_functions_ps import create_filter_params, create_structur
 from model.db_models_ps import PSDATA, reference_models, FedState, Otrasl, VersProgn, GroupPost, Regions
 from model.mappings_ps import yn_mapping, vers_mapping
 
-# relimport
+#relimport
 
-# absimport
-''' # absimport
+#absimport
+''' #absimport
 # Import the database session
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
@@ -27,7 +27,7 @@ from progSpros_back.functions.utility_functions_ps import create_filter_params, 
     mapping, to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Otrasl, VersProgn, GroupPost, Regions
 from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
-''' # absimport
+''' #absimport
 
 # Define the namespace
 ns_map_otr_ps = Namespace('MapOtrasl', description='Карта по отраслям')
