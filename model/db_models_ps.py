@@ -1,12 +1,24 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint, Table, DateTime
+from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint, Table, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 # from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.ext.declarative import declarative_base
 
 # Создание основного класса
 Base = declarative_base()
 
+
+# # Отношение многие ко многим
+# group_regions_relation = Table(
+#     'tab_relation_group_region_d314',
+#     Base.metadata,
+#     Column('id', Integer, primary_key=True),
+#     Column('id_region', Integer, ForeignKey('tab_region_d314.id', ondelete='CASCADE'), primary_key=True),
+#     Column('id_group_region', Integer, ForeignKey('tab_group_region_d314.id', ondelete='CASCADE'), primary_key=True),
+#     Column('date_added', DateTime(timezone=False)),
+#     schema='public',
+# )
 class PSDATA(Base):
     __tablename__ = 'tab_progn_spr_gaz_d314'
     __table_args__ = {'schema': 'public'}
@@ -73,9 +85,11 @@ class Regions(Base):
     name = Column(Text, unique=True)
     ord = Column(Integer)
     short_name = Column(Text)
-    tab_fo_d314_ids = Column(Integer)
+    tab_fo_d314_ids = Column(Integer, ForeignKey('tab_fo_d314.id'))
     mid_name = Column(Text)
     real_name = Column(Text)
+
+    # groups = relationship('GroupRegions', secondary=group_regions_relation, back_populates='tab_region_d314')
 
 class Otrasl(Base):
     __tablename__ = 'tab_otrasl_economy_d314'
@@ -153,17 +167,9 @@ class GroupRegions(Base):
     __table_args__ = {'schema': 'public'}
     id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True)
+    # regions = relationship('Regions', secondary=group_regions_relation, back_populates='tab_group_region_d314')
 
 
-# Отношение многие ко многим
-group_regions_relATION = Table(
-    'tab_relation_group_region_d314',
-    Base.metadata,
-    Column('id', Integer, primary_key=True)
-    Column('id_region', Integer, ForeignKey('tab_region_d314.id', ondelete='CASCADE'), primary_key=True),
-    Column('id_group_region', BigInteger, ForeignKey('tab_group_region_d314.id', ondelete='CASCADE'), primary_key=True),
-    Column('date_added', DateTime(timezone=False))
-)
     # id_region = Column(Integer)
     # id_group_region = Column(Integer)
     # date_added = Column(DateTime(timezone=False))
@@ -184,4 +190,22 @@ reference_models = {
     'tab_tu_visual_d314': TU,
     'tab_infr_d314': Infr
 }
+
+group_regions_relation = Table(
+    'tab_relation_group_region_d314',
+    Base.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('id_region', Integer, ForeignKey('public.tab_region_d314.id', ondelete='CASCADE')),
+    Column('id_group_region', Integer, ForeignKey('public.tab_group_region_d314.id', ondelete='CASCADE')),
+    Column('date_added', DateTime(timezone=False)),
+    schema='public'
+)
+
+Regions.groups = relationship('GroupRegions', 
+                             secondary=group_regions_relation, 
+                             back_populates='regions')
+
+GroupRegions.regions = relationship('Regions', 
+                                   secondary=group_regions_relation, 
+                                   back_populates='groups')
 

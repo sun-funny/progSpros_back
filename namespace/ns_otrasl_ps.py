@@ -3,6 +3,23 @@ from datetime import datetime
 from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
+
+
+# relimport
+
+# Import the database session
+from database_ps import db, cache, errorhandler
+from functions.chart_data_functions_ps import apply_dynamic_filters
+from functions.query_functions_ps import otrasl_query, query_prirost
+from functions.utility_functions_ps import create_filter_params, sum_prirost, set_db_connection, mapping, \
+    to_date
+from model.db_models_ps import PSDATA, reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
+from model.mappings_ps import yn_mapping, vers_mapping
+
+# relimport
+
+# absimport
+''' # absimport
 # Import the database session
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
@@ -11,6 +28,8 @@ from progSpros_back.functions.utility_functions_ps import create_filter_params, 
     to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
 from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
+''' # absimport
+
 
 # Define the namespace
 ns_otrasl_ps = Namespace('PrSprOtrasl', description='Прогноз спроса на газ по отраслям, млрд куб. м')

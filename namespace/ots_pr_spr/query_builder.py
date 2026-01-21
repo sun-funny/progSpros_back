@@ -1,11 +1,21 @@
 ﻿from flask import session
 from sqlalchemy import and_, func, case
+
+#relimport
+from functions.chart_data_functions_ps import apply_dynamic_filters
+from functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
+from model.db_models_ps import Prirost, PSDATA, reference_models, Otrasl, FedState, Regions, GroupPost, Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn, Proizv
+from model.mappings_ps import vers_mapping, yn_mapping
+from database_ps import db
+#relimport
+
+''' #absimport
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
 from progSpros_back.model.db_models_ps import Prirost, PSDATA, reference_models, Otrasl, FedState, Regions, GroupPost, Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn, Proizv
 from progSpros_back.model.mappings_ps import vers_mapping, yn_mapping
 from progSpros_back.database_ps import db
-
+''' #absimport
 def get_query(request, yearfrom, yearto, date):
     try:
         # Получить фильтр-параметры из запроса

@@ -14,7 +14,7 @@ dump-db:
 down-dev:
 	docker compose -f docker-compose.dev.yaml down
 psql-db:
-	docker exec -it b4d2c6cd0af7_expr_PGDB psql -U postgres -d expreport
+	docker exec -it progSpros_PGDB psql -U postgres -d progSpros
 update-scripts:
 	docker cp ./expreport_backend/app/src/. expr_backend:/opt/foresight/expreport_backend/app/src/
 	docker cp ./expreport_backend/app/printables/queries/. expr_backend:/opt/foresight/expreport_backend/app/printables/queries/

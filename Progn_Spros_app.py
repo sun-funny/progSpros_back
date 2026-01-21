@@ -12,6 +12,36 @@ from flask import Flask, jsonify, request  # Основные классы и ф
 from sqlalchemy import select, distinct, not_, literal, func, and_  # Основные функции SQLAlchemy
 from werkzeug.exceptions import HTTPException, InternalServerError
 
+
+
+#relimport
+from model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
+from functions.chart_data_functions_ps import apply_dynamic_filters  # Функции отображения данных на графике
+from functions.utility_functions_ps import create_filter_params  # Полезные функции
+from functions.query_functions_ps import otrasl_query, all_data_query  # Функции запроса
+from library_models_ps import ns_mod, year_grapth_model  # Library models
+from config_ps import Config, changelog, secret_key  # Конфигурация и список изменений
+from namespace.ns_rf_ps import ns_rf_ps
+from namespace.ns_otrasl_ps import ns_otrasl_ps
+from namespace.ns_map_otr_ps import ns_map_otr_ps
+from namespace.ns_map_potr_ps import ns_map_potr_ps
+from namespace.ns_fo_region_ps import ns_fo_region_ps
+from namespace.ns_big_invest_ps import ns_big_invest_ps
+from namespace.ns_sankey_ps import ns_sankey_ps
+from namespace.ns_mapping_otr_ps import ns_mapping_otr_ps
+from namespace.ns_big_invest_xls_ps import ns_big_invest_xls_ps
+from namespace.ns_region_fo_ps import ns_region_fo_ps
+from namespace.ns_years_ps import ns_years_ps
+from namespace.ots_pr_spr.ns_ots_pr_spr_pot_ps import ns_ots_pr_spr_ps
+from namespace.ns_group_post_ps import ns_group_post_ps
+# Работа с базой данных
+from database_ps import db, engine, cache
+#relimport
+
+
+
+
+''' #absimport
 from progSpros_back.model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters  # Функции отображения данных на графике
 from progSpros_back.functions.utility_functions_ps import create_filter_params  # Полезные функции
@@ -33,6 +63,7 @@ from progSpros_back.namespace.ots_pr_spr.ns_ots_pr_spr_pot_ps import ns_ots_pr_s
 from progSpros_back.namespace.ns_group_post_ps import ns_group_post_ps
 # Работа с базой данных
 from progSpros_back.database_ps import db, engine, cache
+''' #absimport
 # Импорт Flask-Restx
 from flask_restx import Api, Resource, Namespace  # Классы Flask-Restx для создания API
 

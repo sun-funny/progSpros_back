@@ -1,6 +1,20 @@
 from flask import jsonify, session, request, send_from_directory, send_file
 from flask_restx import Namespace, Resource
 
+#relimport
+from functions.utility_functions_ps import to_date
+# Import the database session
+from database_ps import cache, errorhandler
+from model.mappings_ps import yn_mapping
+
+from namespace.ots_pr_spr.constants import shown_columns_map
+from namespace.ots_pr_spr.query_builder import get_query
+from namespace.ots_pr_spr.data_processor import get_data
+from namespace.ots_pr_spr.excel_generator import get_data_exl, get_excel
+from namespace.ots_pr_spr.maping import reverse_replace
+#relimport
+
+''' #absimport
 from progSpros_back.functions.utility_functions_ps import to_date
 # Import the database session
 from progSpros_back.database_ps import cache, errorhandler
@@ -11,7 +25,7 @@ from progSpros_back.namespace.ots_pr_spr.query_builder import get_query
 from progSpros_back.namespace.ots_pr_spr.data_processor import get_data
 from progSpros_back.namespace.ots_pr_spr.excel_generator import get_data_exl, get_excel
 from progSpros_back.namespace.ots_pr_spr.maping import reverse_replace
-
+''' #absimport
 # Define the namespace
 ns_ots_pr_spr_ps = Namespace('OtsPrSpr', description='Оценка прогнозного спроса на газ потребителей')
 

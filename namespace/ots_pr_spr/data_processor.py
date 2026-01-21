@@ -1,9 +1,17 @@
 import pandas as pd
 from typing import List, Tuple, Dict, Any
-#
+
+# relimport
+from namespace.ots_pr_spr.data_models import Consumers, RegionData
+from namespace.ots_pr_spr.constants import shown_columns_map, other_columns_map, value_map
+from namespace.ots_pr_spr.maping import replace_value_map, replace_columns_map, get_column_name
+# relimport
+
+''' # absimport
 from progSpros_back.namespace.ots_pr_spr.data_models import Consumers, RegionData
 from progSpros_back.namespace.ots_pr_spr.constants import shown_columns_map, other_columns_map, value_map
 from progSpros_back.namespace.ots_pr_spr.maping import replace_value_map, replace_columns_map, get_column_name
+''' # absimport
 
 def get_data(query, shown_columns, otrasl_total, yearfrom: int, yearto: int, sum_pr: float = None):
 

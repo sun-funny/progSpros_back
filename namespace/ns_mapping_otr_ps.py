@@ -3,11 +3,24 @@ from datetime import datetime
 from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
+
+# relimport
+
+from database_ps import db, cache, errorhandler
+from functions.query_functions_ps import mapping_otrasl_query
+from functions.utility_functions_ps import set_db_connection, mapping
+from model.db_models_ps import reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
+
+# relimport
+
+#absimport
 # Import the database session
+''' # absimport
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.query_functions_ps import mapping_otrasl_query
 from progSpros_back.functions.utility_functions_ps import set_db_connection, mapping
 from progSpros_back.model.db_models_ps import reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
+''' # absimport
 
 # Define the namespace
 ns_mapping_otr_ps = Namespace('MappingOtrasl', description='Отрасли')

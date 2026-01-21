@@ -1,6 +1,6 @@
 ﻿from sqlalchemy import func, and_, case
 
-# Округа и регионы
+'''# Округа и регионы
 def fo_region_query(base_query, tab_region_d314, tab_fo_d314):
     """
     Генерирует запрос для "Прогнозный спрос по отраслям" на основе указанного столбца.
@@ -23,7 +23,27 @@ def fo_region_query(base_query, tab_region_d314, tab_fo_d314):
     ).order_by(
         tab_region_d314.name
     )
+    )'''
+'''# Группы округов и регионов
+def fo_group_query(base_query, tab_group_region_d314): #, tab_fo_d314):
+    """
+    Генерирует запрос для "Прогнозный спрос по отраслям" на основе указанного столбца.
+
+    Аргументы:
+        base_query (Запрос): Базовый объект запроса SQLAlchemy.
+        progn_spros_data (База): Объект таблицы SQLAlchemy, содержащий данные ресурса.
+
+    """
+    return (base_query.with_entities(
+        tab_group_region_d314.name.label('group')
+    ).join(
+    tab_fo_d314, tab_fo_d314.id == tab_group_region_d314.tab_fo_d314_ids
+    ).group_by(
+        tab_group_region_d314.name,
+    ).order_by(
+        tab_group_region_d314.name
     )
+    )'''
 
 def region_fo_query(base_query, tab_region_d314, tab_fo_d314):
     """
