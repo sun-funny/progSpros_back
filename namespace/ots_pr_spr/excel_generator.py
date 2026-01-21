@@ -49,9 +49,25 @@ def get_data_exl(query, shown_columns, yearfrom: int, yearto: int, otrasl_total:
     try:
         results = query.session.execute(query).fetchall()
         df = pd.DataFrame(results, columns=[col['name'] for col in query.column_descriptions])
+
+        # Старая версия - Если year_to < sum_pr (Потребление больше), то отсеиваем эти строки
+        #if sum_pr is not None:
+        #    #df = df[df['prirost'] > sum_pr]
+        #    df = df[df[f'y{yearto}'] > sum_pr]
+        # Новая версия оставляем все строки, но подменяем contragent на Прочие потребители для строк, где year_to < sum_pr
         if sum_pr is not None:
-            #df = df[df['prirost'] > sum_pr]
-            df = df[df[f'y{yearto}'] > sum_pr]
+            # Только изменяем contragent для строк, соответствующих условию
+            mask = df[f'y{yearto}'] < sum_pr
+            df.loc[mask, 'contragent'] = "Прочие потребители"
+            # Сбрасываем значения в shown_columns для строк "Прочие потребители"
+            # чтобы они корректно группировались
+            if shown_columns:  # Проверяем, что список не пустой
+                df.loc[mask, shown_columns] = ''
+
+            mask_other = df['contragent'] == 'Прочие потребители'
+            df.loc[mask_other, 'sort'] = '2'
+            df.loc[mask_other, 'otrasl'] = ''
+            df.loc[mask_other, 'otrasl_ord'] = ''
 
     except Exception as e:
         print(f"Error reading SQL data: {e}")

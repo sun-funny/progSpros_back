@@ -134,9 +134,6 @@ class BigInvest(Resource):
             query = big_invest_query_potr(base_query, Prirost, Otrasl, FedState, Regions, GroupPost, StPotr, StGaz, Infr,
                                      Dogovor, TU, yearfrom, yearto, Contragent, date)
 
-            from sqlalchemy.dialects import postgresql
-            print(query.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
-
             title = f"Крупные инвестиционные проекты"
             # Создать структуру вывода для Json
             result = []

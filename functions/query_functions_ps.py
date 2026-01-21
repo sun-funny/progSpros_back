@@ -373,6 +373,9 @@ def fo_potr_query(base_query, tab_progn_spr_gaz_d314, tab_fo_d314, tab_contragen
     tab_fo_d314, tab_fo_d314.id == tab_progn_spr_gaz_d314.tab_fo_d314_ids
     ).filter(tab_progn_spr_gaz_d314.year == yearto
     ).filter(tab_progn_spr_gaz_d314.date == date
+    ).filter(and_(
+        tab_progn_spr_gaz_d314.tab_contragent_d314_ids != 44502,
+        tab_progn_spr_gaz_d314.tab_contragent_d314_ids != 44484)
     ).group_by(
         tab_fo_d314.name,
         tab_contragent_d314.name
@@ -576,6 +579,11 @@ def big_invest_query_potr(base_query, tab_prirost_d314, tab_otrasl_economy_d314,
     ).filter(tab_prirost_d314.yearfrom == yearfrom
     ).filter(tab_prirost_d314.yearto == yearto
     ).filter(tab_prirost_d314.date == date
+    ).filter(
+        and_(
+            tab_prirost_d314.tab_contragent_d314_ids != 44502,
+            tab_prirost_d314.tab_contragent_d314_ids != 44484
+        )
     ).group_by(
         tab_otrasl_economy_d314.name,
         tab_fo_d314.name,

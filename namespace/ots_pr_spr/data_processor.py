@@ -39,12 +39,33 @@ def get_data(query, shown_columns, otrasl_total, yearfrom: int, yearto: int, sum
 
     if df.empty:
         return consumers.to_dict()
+    # Старая версия - Если year_to < sum_pr (Потребление больше), то отсеиваем эти строки
+    #if sum_pr is not None:
+    #    #df = df[df['prirost'] > sum_pr]
+    #    df = df[df[f'y{yearto}'] > sum_pr]
+    #    if df.empty:
+    #        return consumers.to_dict()
+    #    else:
+    #        # Подменить 'contragent' на "Прочие потребители" для строк
+    #        df['contragent'] = "Прочие потребители"
 
+    # Новая версия оставляем все строки, но подменяем contragent на Прочие потребители для строк, где year_to < sum_pr
     if sum_pr is not None:
-        #df = df[df['prirost'] > sum_pr]
-        df = df[df[f'y{yearto}'] > sum_pr]
-        if df.empty:
-            return consumers.to_dict()
+        # Только изменяем contragent для строк, соответствующих условию
+        mask = df[f'y{yearto}'] < sum_pr
+        df.loc[mask, 'contragent'] = "Прочие потребители"
+        # Сбрасываем значения в shown_columns для строк "Прочие потребители"
+        # чтобы они корректно группировались
+        if shown_columns:  # Проверяем, что список не пустой
+            df.loc[mask, shown_columns] = ''
+
+        mask_other = df['contragent'] == 'Прочие потребители'
+        df.loc[mask_other, 'sort'] = '2'
+        df.loc[mask_other, 'otrasl'] = ''
+        df.loc[mask_other, 'otrasl_ord'] = ''
+
+        if shown_columns:
+            df.loc[mask_other, shown_columns] = ''
 
     processed_df = preprocess_data(df, years, shown_columns)
 
@@ -233,6 +254,7 @@ def get_data(query, shown_columns, otrasl_total, yearfrom: int, yearto: int, sum
 
                 # Детализация по потребителям
                 group_cols = ['sort', 'contragent'] + shown_columns
+
                 subgroup_itog = (
                     ver_real_group
                     .groupby(group_cols, dropna=False)  # важно оставить dropna=False
