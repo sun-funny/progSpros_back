@@ -1,0 +1,49 @@
+services:
+
+  bcp_backend:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.dev
+    container_name: progSpros_backend
+    environment:
+      - POSTGRES_DB=postgres
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/progSpros
+    volumes:
+      - .:/progSpros_back/
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    command: python /progSpros_back/Progn_Spros_app.py
+    depends_on:
+      - db
+
+  db:
+    container_name: progSpros_PGDB
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: progSpros
+    volumes:
+      - postgres:/var/lib/postgresql_15/data
+    ports:
+      - 5431:5432
+
+  pgadmin:
+    container_name: progSprosPGAdmin
+    image: dpage/pgadmin4:7
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@pgadmin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - 15433:80
+    volumes:
+      - pgadmin:/var/lib/pgadmin_7
+    depends_on:
+      - db
+
+volumes:
+  postgres:
+  pgadmin:

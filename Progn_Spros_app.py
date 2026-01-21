@@ -74,4 +74,4 @@ api.add_namespace(ns_ots_pr_spr_ps, path='')
 api.add_namespace(ns_group_post_ps, path='')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5001)

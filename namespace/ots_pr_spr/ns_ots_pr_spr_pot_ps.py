@@ -5,7 +5,7 @@ from progSpros_back.functions.utility_functions_ps import to_date
 # Import the database session
 from progSpros_back.database_ps import cache, errorhandler
 from progSpros_back.model.mappings_ps import yn_mapping
-#
+
 from progSpros_back.namespace.ots_pr_spr.constants import shown_columns_map
 from progSpros_back.namespace.ots_pr_spr.query_builder import get_query
 from progSpros_back.namespace.ots_pr_spr.data_processor import get_data
