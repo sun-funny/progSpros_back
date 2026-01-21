@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint
-from sqlalchemy.dialects.mysql import DATETIME
+from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint, Table, DateTime
+# from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.ext.declarative import declarative_base
 
 # Создание основного класса
@@ -34,7 +34,7 @@ class PSDATA(Base):
     post = Column(Integer)  # Ключ к Поставщик
     tab_proizvoditel_d314_ids = Column(Integer)  # Ключ к Производитель
     tab_start_gaz_d314_ids = Column(Integer)  # Ключ к Начало отбора
-    date = Column(DATETIME)
+    date = Column(DateTime(timezone=False))
 
 class Prirost(Base):
     __tablename__ = 'tab_prirost_d314'
@@ -56,7 +56,7 @@ class Prirost(Base):
     tab_start_gaz_d314_ids = Column(Integer)  # Ключ к Начало отбора
     yearfrom = Column(Integer)  # Ключ к Год
     yearto = Column(Integer)  # Ключ к Год
-    date = Column(DATETIME)
+    date = Column(DateTime(timezone=False))
 
 class FedState(Base):
     __tablename__ = 'tab_fo_d314'
@@ -147,6 +147,26 @@ class Infr(Base):
     __table_args__ = {'schema': 'public'}
     id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True)
+
+class GroupRegions(Base):
+    __tablename__ = 'tab_group_region_d314'
+    __table_args__ = {'schema': 'public'}
+    id = Column(Integer, primary_key=True)
+    name = Column(Text, unique=True)
+
+
+# Отношение многие ко многим
+group_regions_relATION = Table(
+    'tab_relation_group_region_d314',
+    Base.metadata,
+    Column('id', Integer, primary_key=True)
+    Column('id_region', Integer, ForeignKey('tab_region_d314.id', ondelete='CASCADE'), primary_key=True),
+    Column('id_group_region', BigInteger, ForeignKey('tab_group_region_d314.id', ondelete='CASCADE'), primary_key=True),
+    Column('date_added', DateTime(timezone=False))
+)
+    # id_region = Column(Integer)
+    # id_group_region = Column(Integer)
+    # date_added = Column(DateTime(timezone=False))
 
 # Определить эталонные модели и их атрибуты. Поля можно задать без _ids
 reference_models = {
