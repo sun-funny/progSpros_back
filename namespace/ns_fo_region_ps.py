@@ -46,7 +46,7 @@ group_regions_request_model = ns_fo_region_ps.model('GroupRegionsRequest', {
 })
 
 
-@ns_fo_region_ps.route('/fo-region', methods=['GET', 'POST', 'PUT'])
+@ns_fo_region_ps.route('/fo-region', methods=['GET', 'POST', 'PUT', 'OPTIONS'])
 @ns_fo_region_ps.response(200, 'Success')
 class FORegionDATA(Resource):
     @ns_fo_region_ps.doc(params={
@@ -219,8 +219,8 @@ class FORegionDATA(Resource):
 
     def options(self):
         origin = request.headers.get('Origin')
-        return {'Allow': 'POST'}, 200, {
+        return {'Allow': 'OPTIONS, POST, GET'}, 200, {
             'Access-Control-Allow-Origin': origin,
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization'
         }
