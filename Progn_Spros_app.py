@@ -71,6 +71,11 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = secret_key
 
+try:
+    from flask_cors import CORS
+    CORS(app)
+except ImportError:
+    pass
 
 # Настройка API Flask-Restx
 api = Api(app,
