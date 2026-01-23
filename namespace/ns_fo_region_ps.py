@@ -44,8 +44,12 @@ group_regions_request_model = ns_fo_region_ps.model('GroupRegionsRequest', {
                            required=True, 
                            description='List of groups with their regions')
 })
-parser = reqparse.RequestParser()
-parser.add_argument('groups_ids', required=True, type=int, help='comma separated list of ids', action='split')
+
+region_ids_model = ns_fo_region_ps.model('GroupRegionsDeleteRequest', {
+    'group_ids': fields.List(fields.Integer, required=True, description='List of ids')
+})
+# parser = reqparse.RequestParser()
+# parser.add_argument('groups_ids', required=True, type=int, help='comma separated list of ids', action='split')
 
 
 @ns_fo_region_ps.route('/fo-region', methods=['GET', 'POST', 'PUT', 'OPTIONS', 'DELETE'])
@@ -223,15 +227,15 @@ class FORegionDATA(Resource):
             ns_fo_region_ps.abort(*errorhandler(e))
         return 200
     
-    @ns_fo_region_ps.expect(parser)
+    @ns_fo_region_ps.expect(region_ids_model)
     def delete(self):
         try:
             # data = request.get_json()
             
             # if not data or 'fo_group' not in data:
             #     return {'error': 'Missing fo_group data'}, 400
-            args = parser.parse_args()
-            groups_ids = args['groups_ids']
+            args = request.get_json()
+            groups_ids = args['group_ids']
             # groups_ids = data['fo_group']
 
             try:
