@@ -2,9 +2,9 @@
 from collections import OrderedDict
 from decimal import Decimal
 from datetime import datetime
-from sqlalchemy import func, select, and_, distinct, or_, case, delete
+from sqlalchemy import func, select, and_, distinct, or_, case, delete, update
 from flask import jsonify, session, request
-from flask_restx import fields, Namespace, Resource
+from flask_restx import fields, Namespace, Resource, reqparse
 
 #relimport
 
@@ -44,9 +44,11 @@ group_regions_request_model = ns_fo_region_ps.model('GroupRegionsRequest', {
                            required=True, 
                            description='List of groups with their regions')
 })
+parser = reqparse.RequestParser()
+parser.add_argument('groups_ids', required=True, type=int, help='comma separated list of ids', action='split')
 
 
-@ns_fo_region_ps.route('/fo-region', methods=['GET', 'POST', 'PUT', 'OPTIONS'])
+@ns_fo_region_ps.route('/fo-region', methods=['GET', 'POST', 'PUT', 'OPTIONS', 'DELETE'])
 @ns_fo_region_ps.response(200, 'Success')
 class FORegionDATA(Resource):
     @ns_fo_region_ps.doc(params={
@@ -175,8 +177,6 @@ class FORegionDATA(Resource):
                     regions = group_data.get('regions', [])
                     
                     if not group_name or not regions:
-                        # results['errors'].append({'group_data': group_data, 'error': 'Missing group_name'})
-                        # continue
                         raise ValueError('Missing group data')
                     
                     regions_ids = [item.id for item in db.query(Regions).filter(Regions.name.in_(regions)
@@ -196,10 +196,6 @@ class FORegionDATA(Resource):
                             (group_regions_relation.c.id_group_region == group_id)
                         )
                         db.execute(delete_stmt)
-                        # group_region =  db.query(GroupRegions).filter(GroupRegions.id == group_id).first()
-                        # db.execute(group_regions_relation.filter(group_regions_relation.c.id_group_region == group_id
-                                                                #  ).filter(group_regions_relation.c.id_region.in_(regions_ids)).delete(synchronize_session='fetch'))
-                    # group_region =  db.query(GroupRegions).filter(GroupRegions.id == group_id).first()
                     
                     for id in regions_ids:
                         association_data = {
@@ -208,19 +204,58 @@ class FORegionDATA(Resource):
                             'date_added': datetime.now()
                         }
                         db.execute(group_regions_relation.insert().values(**association_data))
+                    stmt = (
+                            update(GroupRegions)
+                            .where(GroupRegions.id == group_id)
+                            .values(name=group_name)
+                        )
+                    db.execute(stmt)
                     
                     db.commit()
                 except Exception as e:
                     db.rollback()
                     raise e
+            
+                group_id = None
+                regions_ids = []
 
         except Exception as e:
             ns_fo_region_ps.abort(*errorhandler(e))
+        return 200
+    
+    @ns_fo_region_ps.expect(parser)
+    def delete(self):
+        try:
+            # data = request.get_json()
+            
+            # if not data or 'fo_group' not in data:
+            #     return {'error': 'Missing fo_group data'}, 400
+            args = parser.parse_args()
+            groups_ids = args['groups_ids']
+            # groups_ids = data['fo_group']
+
+            try:
+                delete_stmt = delete(group_regions_relation).where(
+                            (group_regions_relation.c.id_group_region.in_(groups_ids))
+                        )
+                db.execute(delete_stmt)
+                delete_stmt = delete(GroupRegions).where(
+                            (GroupRegions.id.in_(groups_ids))
+                        )
+                db.execute(delete_stmt)
+                db.commit()
+
+            except Exception as e:
+                db.rollback()
+                raise e
+        except Exception as e:
+            ns_fo_region_ps.abort(*errorhandler(e))
+        return 200
 
     def options(self):
         origin = request.headers.get('Origin')
-        return {'Allow': 'OPTIONS, POST, GET'}, 200, {
+        return {'Allow': 'OPTIONS, POST, GET, DELETE'}, 200, {
             'Access-Control-Allow-Origin': origin,
-            'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS, GET, DELETE',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization'
         }
