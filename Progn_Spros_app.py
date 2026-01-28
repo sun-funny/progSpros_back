@@ -30,6 +30,7 @@ from namespace.ns_big_invest_ps import ns_big_invest_ps
 from namespace.ns_sankey_ps import ns_sankey_ps
 from namespace.ns_mapping_otr_ps import ns_mapping_otr_ps
 from namespace.ns_big_invest_xls_ps import ns_big_invest_xls_ps
+from namespace.ns_data_xls_ps import ns_data_xls_ps
 from namespace.ns_region_fo_ps import ns_region_fo_ps
 from namespace.ns_years_ps import ns_years_ps
 from namespace.ots_pr_spr.ns_ots_pr_spr_pot_ps import ns_ots_pr_spr_ps
@@ -61,6 +62,7 @@ from progSpros_back.namespace.ns_region_fo_ps import ns_region_fo_ps
 from progSpros_back.namespace.ns_years_ps import ns_years_ps
 from progSpros_back.namespace.ots_pr_spr.ns_ots_pr_spr_pot_ps import ns_ots_pr_spr_ps
 from progSpros_back.namespace.ns_group_post_ps import ns_group_post_ps
+from progSpros_back.namespace.ns_data_xls_ps import ns_data_xls_ps
 # Работа с базой данных
 from progSpros_back.database_ps import db, engine, cache
 ''' #absimport
@@ -108,6 +110,7 @@ api.add_namespace(ns_mapping_otr_ps,  path='')
 api.add_namespace(ns_years_ps, path='')
 api.add_namespace(ns_ots_pr_spr_ps, path='')
 api.add_namespace(ns_group_post_ps, path='')
+api.add_namespace(ns_data_xls_ps, path='')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)

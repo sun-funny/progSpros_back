@@ -1,4 +1,5 @@
-﻿from sqlalchemy import func, and_, case
+﻿from typing import Dict, Tuple
+from sqlalchemy import func, and_, case
 
 '''# Округа и регионы
 def fo_region_query(base_query, tab_region_d314, tab_fo_d314):
@@ -704,3 +705,19 @@ def mapping_vers(base_query, tab):
     ).filter(tab.id.not_in([19])
     )
     )
+
+
+# Запрос для выгрузки плоской даты
+def all_data_upload_query(db, base_table, columns: Dict, join_cols_dict: Dict):
+    entities_list = []
+    join_list = []
+    for label, column_d in columns.items():
+        column = column_d.db_column
+        entities_list.append(column.label(label))
+        if column.table != base_table.__table__:
+            
+            join_list.append(column.table)
+    query = db.query(base_table).with_entities(*entities_list)
+    for joined_table in join_list:
+        query = query.join(joined_table, join_cols_dict[joined_table.name]==joined_table.c.id)
+    return query

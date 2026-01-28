@@ -1,7 +1,7 @@
 build-dev:
 	docker-compose -f docker-compose.dev.yaml up db -d
 	docker exec -i progSpros_PGDB psql psql -v ON_ERROR_STOP=1 -p 5432 -U postgres -d progSpros < Progn_Spros.sql
-	docker-compose -f docker-compose.dev.yaml up bcp_backend
+	docker-compose -f docker-compose.dev.yaml up progSpros_backend
 run-dev:
 	docker compose -f 'docker-compose.dev.yaml' up -d --build
 	cd frontend && npm run dev
@@ -15,9 +15,8 @@ down-dev:
 	docker compose -f docker-compose.dev.yaml down
 psql-db:
 	docker exec -it progSpros_PGDB psql -U postgres -d progSpros
-update-scripts:
-	docker cp ./expreport_backend/app/src/. expr_backend:/opt/foresight/expreport_backend/app/src/
-	docker cp ./expreport_backend/app/printables/queries/. expr_backend:/opt/foresight/expreport_backend/app/printables/queries/
+update-templates:
+	docker cp ./templates/. progSpros_backend:/progSpros_back/templates/
 update-reqs:
 	docker cp ./expreport_backend/requirements.txt expr_backend:/opt/foresight/expreport_backend/
 	docker exec -t expr_backend pip3 install --no-cache-dir -r /opt/foresight/expreport_backend/requirements.txt

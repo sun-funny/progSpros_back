@@ -1,19 +1,23 @@
 ﻿from urllib.parse import parse_qs
 from decimal import Decimal
 from datetime import datetime
-from sqlalchemy import inspect
+from sqlalchemy import inspect, create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 from flask import g
 
 #relimport
 from functions.query_functions_ps import mapping_query, mapping_vers
 from database_ps import db
+from config_ps import Config
 #relimport
 
 
 ''' #absimport
 from progSpros_back.functions.query_functions_ps import mapping_query, mapping_vers
 from progSpros_back.database_ps import db
+from progSpros_back.config_ps import Config
+
 ''' #absimport
 
 def create_filter_params(request):
