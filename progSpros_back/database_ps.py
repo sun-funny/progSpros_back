@@ -1,6 +1,6 @@
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import create_engine
-from config_ps import Config
+from progSpros_back.config_ps import Config
 
 # Создание движка SQLAlchemy
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)

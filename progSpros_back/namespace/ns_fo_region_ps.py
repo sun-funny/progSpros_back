@@ -6,25 +6,14 @@ from sqlalchemy import func, select, and_, distinct, or_, case, delete, update
 from flask import jsonify, session, request
 from flask_restx import fields, Namespace, Resource, reqparse
 
-#relimport
 
-from database_ps import db, cache, errorhandler
-from functions.chart_data_functions_ps import apply_dynamic_filters
-# from functions.query_functions_ps import fo_region_query, fo_group_query
-from functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
-from model.db_models_ps import PSDATA, reference_models, FedState, Regions, GroupRegions, group_regions_relation
-#relimport
-
-
-#absimport
 # Import the database session
-''' #absimport
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 # from progSpros_back.functions.query_functions_ps import fo_region_query
 from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
-from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Regions
-''' #absimport
+from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Regions, group_regions_relation, GroupRegions
+
 
 # Define the namespace
 ns_fo_region_ps = Namespace('FORegion', description='Регионы и Федеральные округа')

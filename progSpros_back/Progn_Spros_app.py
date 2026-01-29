@@ -13,9 +13,9 @@ from sqlalchemy import select, distinct, not_, literal, func, and_  # Основ
 from werkzeug.exceptions import HTTPException, InternalServerError
 
 
-
+'''
 #relimport
-from model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
+from progSpros_back.model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
 from functions.chart_data_functions_ps import apply_dynamic_filters  # Функции отображения данных на графике
 from functions.utility_functions_ps import create_filter_params  # Полезные функции
 from functions.query_functions_ps import otrasl_query, all_data_query  # Функции запроса
@@ -39,10 +39,10 @@ from namespace.ns_group_post_ps import ns_group_post_ps
 from database_ps import db, engine, cache
 #relimport
 
+'''
 
 
-
-''' #absimport
+#absimport
 from progSpros_back.model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters  # Функции отображения данных на графике
 from progSpros_back.functions.utility_functions_ps import create_filter_params  # Полезные функции
@@ -65,7 +65,7 @@ from progSpros_back.namespace.ns_group_post_ps import ns_group_post_ps
 from progSpros_back.namespace.ns_data_xls_ps import ns_data_xls_ps
 # Работа с базой данных
 from progSpros_back.database_ps import db, engine, cache
-''' #absimport
+#absimport
 # Импорт Flask-Restx
 from flask_restx import Api, Resource, Namespace  # Классы Flask-Restx для создания API
 

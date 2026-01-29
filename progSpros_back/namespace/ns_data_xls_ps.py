@@ -4,25 +4,15 @@ from flask import request, send_file
 from werkzeug.exceptions import BadRequest
 from datetime import datetime
 
-#relimport
-from database_ps import errorhandler
-from model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr
-from model.mappings_ps import yn_mapping, tick_mapping
-from functions.query_functions_ps import all_data_upload_query
-from database_ps import db  
-from functions.file_upload_functions_ps import ColumnDescriptor, prepare_all_data, build_export_xlsx
-
-#relimport
-
-''' #absimport
 # Import the database session
 from progSpros_back.database_ps import errorhandler
 from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr
 from progSpros_back.model.mappings_ps import yn_mapping, tick_mapping
 from progSpros_back.functions.query_functions_ps import all_data_upload_query
-from progSpros_back.functions.utility_functions_ps import set_db_connection
+from progSpros_back.functions.utility_functions_ps import set_db_connection, db
 from progSpros_back.functions.file_upload_functions_ps import ColumnDescriptor, prepare_all_data, build_export_xlsx
-''' #absimport
+
+
 
 
 ns_data_xls_ps = Namespace('DataXls', description='Выгрузка на дату версии в Excel')

@@ -6,6 +6,7 @@ from sqlalchemy import Column, RowMapping
 import openpyxl
 from flask import current_app
 from io import BytesIO
+import zipfile
 
 @dataclass
 class ColumnDescriptor:
@@ -143,8 +144,6 @@ def build_export_xlsx(template_name: str, headers: Dict[str, ColumnDescriptor], 
             cell.number_format = template_numfmts[col_idx - 1]
 
     def write_row_values(row_idx: int, row: Dict[str, Any]) -> None:
-        # for col_idx, col_name in enumerate(TEMPLATE_COLUMNS, start=1):
-        #     ws.cell(row_idx, col_idx).value = row_map.get(col_name)
         for cell_id, cell_value in row.items():
             col_idx = template_headers_mapper.get(cell_id)
 
@@ -165,3 +164,5 @@ def build_export_xlsx(template_name: str, headers: Dict[str, ColumnDescriptor], 
     bio = BytesIO()
     wb.save(bio)
     return bio.getvalue()
+
+

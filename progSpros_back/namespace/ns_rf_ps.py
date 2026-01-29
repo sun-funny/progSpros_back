@@ -4,38 +4,24 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 
-#relimport
 
-# Import the database session
-from database_ps import db, cache, errorhandler
-from functions.chart_data_functions_ps import apply_dynamic_filters
-from functions.query_functions_ps import fo_otrasl_query
-from functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection, \
-    mapping, to_date
-from model.db_models_ps import PSDATA, reference_models, FedState, Otrasl, VersProgn, GroupPost, Regions
-from model.mappings_ps import yn_mapping, vers_mapping
-
-#relimport
-
-#absimport
-''' #absimport
 # Import the database session
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
-from progSpros_back.functions.query_functions_ps import fo_otrasl_query
-from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure_fo, set_db_connection, \
+from progSpros_back.functions.query_functions_ps import top_potr_query
+from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure, set_db_connection, \
     mapping, to_date
-from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Otrasl, VersProgn, GroupPost, Regions
-from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
-''' #absimport
+from progSpros_back.model.db_models_ps import PSDATA, reference_models, VersProgn, Contragent, GroupPost, Otrasl, \
+    FedState, Regions
+from progSpros_back.model.mappings_ps import vers_mapping, yn_mapping
 
 # Define the namespace
-ns_map_otr_ps = Namespace('MapOtrasl', description='Карта по отраслям')
+ns_rf_ps = Namespace('PRSRF', description='Прогноз спроса на газ в РФ')
 
 
-@ns_map_otr_ps.route('/map_ps')
-@ns_map_otr_ps.response(200, 'Success')
-@ns_map_otr_ps.doc(params={
+@ns_rf_ps.route('/progn-spros-gaz-rf')
+@ns_rf_ps.response(200, 'Success')
+@ns_rf_ps.doc(params={
     'yearfrom': {'description': 'till what year number', 'in': 'query', 'type': 'integer'},
     'yearto': {'description': 'till what year number', 'in': 'query', 'type': 'integer'},
     'otrasl': {'description': 'Отрасль', 'in': 'query', 'type': 'string'},
@@ -45,21 +31,21 @@ ns_map_otr_ps = Namespace('MapOtrasl', description='Карта по отрасл
     'region': {'description': 'Регион', 'in': 'query', 'type': 'string'},
     'dogovor': {'description': 'Договор', 'in': 'query', 'type': 'string'},
     'tu': {'description': 'ТУ', 'in': 'query', 'type': 'string'},
-    'infr': {'description': 'Ифнраструктура', 'in': 'query', 'type': 'string'},
+    'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
     'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
 })
 
-class MapRF(Resource):
+class PrognSprosGazRF(Resource):
     def get(self):
         """
-        Возвращает обратно данные для карты
-
+        Возвращает обратно данные для Прогнозный спрос РФ
         Аргументы:
             - принимает аргумент global_filters из /get_basic_filters
             - принимает аргументы yearfrom, yearto
         """
         try:
             #db = set_db_connection()
+
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
             grpost_mapping = mapping(GroupPost)
@@ -68,6 +54,7 @@ class MapRF(Resource):
 
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
+            # Если не заданы глобальные параметры, взять их из session
             if not filter_params:
                 filter_params = session.get('filter_params')
 
@@ -79,14 +66,14 @@ class MapRF(Resource):
             yearto = request.args.get('yearto', 2034, type=int)
             date = request.args.get('date', type=to_date)
 
-            # Параметры отраслей
+            # Параметры Отрасль
             reverse_otr_mapping = {value: key for key, value in otr_mapping.items()}
             otr = [company.strip() for item in request.args.getlist('otrasl', None) for company in item.split(',')]
             mapped_otr = [reverse_otr_mapping.get(company, company) for company in otr]
             if otr:
                 base_query = base_query.filter((PSDATA.tab_otrasl_economy_d314_ids.in_(mapped_otr)))
 
-            # Параметры версий
+            # Параметры Версия прогноза
             reverse_vers_mapping = {value: key for key, value in vers_mapping.items()}
             vers = [company.strip() for item in request.args.getlist('vers', None) for company in item.split(',')]
             mapped_vers = [reverse_vers_mapping.get(company, company) for company in vers]
@@ -113,7 +100,7 @@ class MapRF(Resource):
             mapped_region = [reverse_region_mapping.get(company, company) for company in region]
             if region:
                 base_query = base_query.filter((PSDATA.tab_region_d314_ids.in_(mapped_region)))
-
+            
             # Параметры Договор
             reverse_dog_mapping = {value: key for key, value in yn_mapping.items()}
             dogovor = [company.strip() for item in request.args.getlist('dogovor', None) for company in item.split(',')]
@@ -136,34 +123,35 @@ class MapRF(Resource):
                 base_query = base_query.filter((PSDATA.tab_infr_d314_ids.in_(mapped_infr)))
 
             # Продолжить создавать основной запрос
-            query = fo_otrasl_query(base_query, PSDATA, FedState, Otrasl, yearfrom, yearto, date)
-            title = f"Карта по отраслям"
+            queryPotr = top_potr_query(base_query, PSDATA, Contragent, VersProgn, yearfrom, yearto, date)
+
+            from sqlalchemy.dialects import postgresql
+            print(queryPotr.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+
+            title = f"Прогноз спроса на газ в РФ, млрд куб. м"
+
             version_mapping = {
-                'Дальневосточный федеральный округ': 'DFO',
-                'Приволжский федеральный округ': 'PFO',
-                'Северо-Западный федеральный округ': 'SZFO',
-                'Северо-Кавказский федеральный округ': 'SKFO',
-                'Сибирский федеральный округ': 'SFO',
-                'Уральский федеральный округ': 'UFO',
-                'Центральный федеральный округ': 'CFO',
-                'Южный федеральный округ': 'YUFO'
+                'низкая вероятность реализации проекта': 'low',
+                'средняя вероятность реализации проекта': 'mid',
+                'высокая вероятность реализации проекта': 'high',
+                'действующие потребители': 'actual',
             }
 
             # Создать структуру вывода для Json
             structure = {}
-            results = query.all()
-            structure = create_structure_fo('Карта по отраслям', 'otrasl_list', results, version_mapping, structure)
+            results = queryPotr.all()
+
+            structure = create_structure('Топ 5 потребителей', results, version_mapping, structure)
             structure = {version_mapping.get(year, year): versions for year, versions in structure.items()}
+
 
             graph_data = {
                 "title": title,
                 "data": structure
             }
-
-            #            return jsonify(graph_data)
             response = jsonify(graph_data)
             response.headers.add('Access-Control-Allow-Origin', '*');
             return response
 
         except Exception as e:
-            ns_map_otr_ps.abort(*errorhandler(e))
+            ns_rf_ps.abort(*errorhandler(e))

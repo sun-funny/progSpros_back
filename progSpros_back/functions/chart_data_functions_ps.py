@@ -5,13 +5,17 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import NoResultFound
 from flask import current_app as app
 
-#relimport
-from config_ps import format_strings
-#relimport
+''' #relimport
 
-''' #absimport
+from config_ps import format_strings
+''' #relimport
+
+
+# absimport
+
 from progSpros_back.config_ps import format_strings
-''' #absimport
+# absimport
+
 
 """
 

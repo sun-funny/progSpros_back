@@ -1,7 +1,7 @@
 build-dev:
-	docker-compose -f docker-compose.dev.yaml up db -d
+	docker-compose -f docker-compose.dev.yaml up -d db 
 	docker exec -i progSpros_PGDB psql psql -v ON_ERROR_STOP=1 -p 5432 -U postgres -d progSpros < Progn_Spros.sql
-	docker-compose -f docker-compose.dev.yaml up progSpros_backend
+	docker-compose -f docker-compose.dev.yaml up backend
 run-dev:
 	docker compose -f 'docker-compose.dev.yaml' up -d --build
 	cd frontend && npm run dev

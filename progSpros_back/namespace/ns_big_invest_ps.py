@@ -1,53 +1,41 @@
-﻿import openpyxl
-import io
-import pandas as pd
-import json
-from openpyxl import Workbook
-from flask import jsonify, session, request, send_from_directory, send_file
-
+﻿
+from decimal import Decimal
+from datetime import datetime
+from sqlalchemy import func, select, and_, distinct, or_
+from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
-from openpyxl import Workbook, load_workbook
-from sqlalchemy import column
-
-
-#relimport
-from database_ps import cache, errorhandler
-from functions.chart_data_functions_ps import apply_dynamic_filters
-from functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
-from functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
-    set_db_connection, mapping, to_date
-from model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
-    Contragent, StPotr, StGaz, Dogovor, TU, Infr
-from model.mappings_ps import yn_mapping, vers_mapping
-from database_ps import db
-#relimport
-
-
-#absimport
-''' #absimport
 # Import the database session
-from progSpros_back.database_ps import cache, errorhandler
+from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
 from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
     set_db_connection, mapping, to_date
 from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
-    Contragent, StPotr, StGaz, Dogovor, TU, Infr
+    Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr
 from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
-from progSpros_back.database_ps import db
-''' #absimport
+
+
+from decimal import Decimal
+from datetime import datetime
+from sqlalchemy import func, select, and_, distinct, or_
+from flask import jsonify, session, request
+from flask_restx import Namespace, Resource
 
 # Define the namespace
-ns_big_invest_xls_ps = Namespace('BigInvestXls', description='Крупные инвестиционные проекты в Excel')
+ns_big_invest_ps = Namespace('BigInvest', description='Крупные инвестиционные проекты')
 
+# Рут для очистки данных сессии
+@ns_big_invest_ps.route('/clear_session_flask')
+@ns_big_invest_ps.response(200, 'True: session cleared')  # Ответ при успешной очистке
+class ClearSession(Resource):
+    def delete(self):
+        """ Очищает сессию Flask """
+        session.clear()  # Очищаем хранилище сессий Flask
+        return "Session cleared", 200  # Сообщение об успешной очистке
 
-def get_xlsx_from_db(download_name):
-    pass
-
-
-@ns_big_invest_xls_ps.route('/big_invest_xls_ps')
-@ns_big_invest_xls_ps.response(200, 'Success')
-@ns_big_invest_xls_ps.doc(params={
+@ns_big_invest_ps.route('/big_invest_ps')
+@ns_big_invest_ps.response(200, 'Success')
+@ns_big_invest_ps.doc(params={
     'yearfrom': {'description': 'Год с', 'in': 'query', 'type': 'integer'},
     'yearto': {'description': 'Год по', 'in': 'query', 'type': 'integer'},
     'sum_pr': {'description': 'Прирост с', 'in': 'query', 'type': 'integer'},
@@ -60,14 +48,13 @@ def get_xlsx_from_db(download_name):
     'tu': {'description': 'ТУ', 'in': 'query', 'type': 'string'},
     'infr': {'description': 'Инфраструктура', 'in': 'query', 'type': 'string'},
     'date': {'description': 'Дата загрузки', 'in': 'query', 'type': 'to_date'}
-})
+    })
 
-class BigInvestXls(Resource):
+class BigInvest(Resource):
     def get(self):
         """
-        Возвращает обратно данные для выгрузки в Excel крупных инвестиционных проектов
+        Возвращает данные для карты
         Аргументы:
-            - принимает аргумент global_filters из /get_basic_filters
             - принимает аргументы yearfrom, yearto
         """
         try:
@@ -78,19 +65,20 @@ class BigInvestXls(Resource):
             if not filter_params:
                 filter_params = session.get('filter_params')
 
+            # Определите базовый запрос с помощью динамических фильтров
+            base_query = db.query(Prirost)
+            base_query = apply_dynamic_filters(base_query, Prirost, filter_params, db, reference_models)
+
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
             grpost_mapping = mapping(GroupPost)
             fo_mapping = mapping(FedState)
             region_mapping = mapping(Regions)
 
-            # Определите базовый запрос с помощью динамических фильтров
-            base_query = db.query(Prirost)
-            base_query = apply_dynamic_filters(base_query, Prirost, filter_params, db, reference_models)
-
             yearfrom = request.args.get('yearfrom', 2023, type=int)
             yearto = request.args.get('yearto', 2034, type=int)
-            sum_pr = request.args.get('sum_pr', -10000, type=int)
+            sum_pr = request.args.get('sum_pr', 0, type=int)
+
             date = request.args.get('date', type=to_date)
 
             # Параметры Отрасль
@@ -148,83 +136,67 @@ class BigInvestXls(Resource):
             mapped_infr = [reverse_infr_mapping.get(company, company) for company in infr]
             if infr:
                 base_query = base_query.filter((Prirost.tab_infr_d314_ids.in_(mapped_infr)))
+                from sqlalchemy.dialects import postgresql
 
             # Продолжить создавать основной запрос
             query = big_invest_query_potr(base_query, Prirost, Otrasl, FedState, Regions, GroupPost, StPotr, StGaz, Infr,
                                      Dogovor, TU, yearfrom, yearto, Contragent, date)
 
             title = f"Крупные инвестиционные проекты"
-
             # Создать структуру вывода для Json
             result = []
-
+            i = 0
             for row in query:
 
                 if row.dogovor == 'V':
-                    dog = '+'
+                    dog = True
                 else:
-                    dog = '-'
+                    dog = False
 
                 if row.infr == 'V':
-                    infr = '+'
+                    infr = True
                 else:
-                    infr = '-'
+                    infr = False
 
                 if row.tu == 'V':
-                    tu = '+'
+                    tu = True
                 else:
-                    tu = '-'
+                    tu = False
 
-                if float(row.prirost) >= sum_pr  and float(row.prirost) != 0:
-                    result_dict = {'Потребитель': row.contragent,
-                                   'Федеральный округ': row.fo,
-                                   'Регион': row.region,
-                                   'Группа поставщиков': row.grpost,
-                                   'Отрасль': row.otrasl,
-                                   'Статус': row.stpotr,
-                                   'Начало отбора': row.stgaz,
-                                   'ПГ': infr,
-                                   'Договор': dog,
-                                   'ТУ': tu,
-                                   'Прирост, млн м3': float(row.prirost)
-                               }
+                if float(row.prirost) >= sum_pr and float(row.prirost) != 0:
+                    result_dict ={'fo': row.fo,
+                                  'reg': row.region,
+                                  'grp': row.grpost,
+                                  'otrasl': row.otrasl,
+                                  'stp': row.stpotr,
+                                  'st': row.stgaz,
+                                  'pg': infr,
+                                  'dog': dog,
+                                  'tu': tu,
+                                  'prirost': float(row.prirost),
+                                  'contragent': row.contragent
+                             }
 
                     result.append(result_dict)
+                    i += 1
+                if i > 100:
+                    break
+
             def get_prirost(element):
-                return element['Прирост, млн м3']
-
+                return element['prirost']
+            
             result.sort(key=get_prirost, reverse=True)
-            y = json.dumps(result)
-            df = pd.read_json(y)
-            df.to_excel('/opt/foresight/progSpros_back/output.xlsx', index=False)
+            
+            graph_data = {
+                "title": title,
+                "data": result
+                }
 
-            # Обработка Excel
-            workbook = openpyxl.load_workbook("/opt/foresight/progSpros_back/output.xlsx")
-            sheet = workbook["Sheet1"]  # Получение листа по имени
-            sheet.column_dimensions['A'].width = 40
-            sheet.column_dimensions['B'].width = 37
-            sheet.column_dimensions['C'].width = 31
-            sheet.column_dimensions['D'].width = 20
-            sheet.column_dimensions['E'].width = 20
-            sheet.column_dimensions['F'].width = 18
-            sheet.column_dimensions['G'].width = 14
-            sheet.column_dimensions['H'].width = 5
-            sheet.column_dimensions['I'].width = 8
-            sheet.column_dimensions['J'].width = 5
-            sheet.column_dimensions['K'].width = 15
-            for row in sheet.iter_rows(min_row=2, max_row=3000, min_col=11, max_col=11):
-                for cell in row:
-                    cell.number_format = '#,##0.0'
-
-            workbook.save("/opt/foresight/progSpros_back/output.xlsx")
-
-            # Передать файл Excel выгруженный на сервер
-            name = 'output.xlsx'
-            basic_path = '/opt/foresight/progSpros_back/'
-
-            response = send_from_directory(directory=f"{basic_path}", path=name, as_attachment=True)
+                #            return jsonify(graph_data)
+            response = jsonify(graph_data)
             response.headers.add('Access-Control-Allow-Origin', '*')
 
             return response
+
         except Exception as e:
-            ns_big_invest_xls_ps.abort(*errorhandler(e))
+                ns_big_invest_ps.abort(*errorhandler(e))

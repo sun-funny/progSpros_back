@@ -5,24 +5,13 @@ from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 
 
-#relimport
-
-# Import the database session
-from database_ps import db, cache, errorhandler
-from functions.query_functions_ps import mapping_otrasl_query, mapping_query
-from functions.utility_functions_ps import set_db_connection, mapping
-from model.db_models_ps import reference_models, GroupPost
-
-#relimport
-
-#absimport
-''' #absimport
 # Import the database session
 from progSpros_back.database_ps import db, cache, errorhandler
 from progSpros_back.functions.query_functions_ps import mapping_otrasl_query, mapping_query
 from progSpros_back.functions.utility_functions_ps import set_db_connection, mapping
 from progSpros_back.model.db_models_ps import reference_models, GroupPost
-''' #absimport
+
+
 
 # Define the namespace
 ns_group_post_ps = Namespace('MappingGroupPost', description='Группа поставщиков')
