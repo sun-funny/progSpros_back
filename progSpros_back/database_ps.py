@@ -1,7 +1,7 @@
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import create_engine
 from progSpros_back.config_ps import Config
-
+from flask import g
 # # Создание движка SQLAlchemy
 # engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)
 # db = scoped_session(sessionmaker(bind=engine))
@@ -16,11 +16,12 @@ class SingletonMeta(type):
 
 class DB(metaclass=SingletonMeta):
     def __init__(self, direct: bool):
+        self._direct = direct
         if direct:
             self.engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)
             self.session = scoped_session(sessionmaker(bind=self.engine))
-        else:
-            self.session = g.session
+    def session(self):
+        return self.session if self._direct else g.session
 
 def set_db_connection():
     db = DB(direct=True) 
