@@ -6,10 +6,10 @@ from flask_restx import Namespace, Resource
 
 
 # Import the database session
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import set_db_connection, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import region_fo_query
-from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params, mapping
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Regions
 
 
@@ -29,7 +29,7 @@ class FORegionDATA(Resource):
         Возвращает регионы в зависимости от выбранного округа
         """
         try:
-            #db = set_db_connection()
+            db = set_db_connection()
 
             # Мэппинги из справочников
             fo_mapping = mapping(FedState)

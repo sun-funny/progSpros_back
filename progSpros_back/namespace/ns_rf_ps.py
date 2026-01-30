@@ -6,10 +6,10 @@ from flask_restx import Namespace, Resource
 
 
 # Import the database session
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import set_db_connection, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import top_potr_query
-from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure, set_db_connection, \
+from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure, \
     mapping, to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, VersProgn, Contragent, GroupPost, Otrasl, \
     FedState, Regions
@@ -44,7 +44,7 @@ class PrognSprosGazRF(Resource):
             - принимает аргументы yearfrom, yearto
         """
         try:
-            #db = set_db_connection()
+            db = set_db_connection()
 
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)

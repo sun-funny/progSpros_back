@@ -6,9 +6,9 @@ from flask_restx import Namespace, Resource
 
 
 
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import set_db_connection, cache, errorhandler
 from progSpros_back.functions.query_functions_ps import mapping_otrasl_query
-from progSpros_back.functions.utility_functions_ps import set_db_connection, mapping
+from progSpros_back.functions.utility_functions_ps import mapping
 from progSpros_back.model.db_models_ps import reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
 
 
@@ -25,7 +25,7 @@ class FORegionDATA(Resource):
         Возвращает отсортированные отрасли
         """
         try:
-            #db = set_db_connection()
+            db = set_db_connection()
             # Определите базовый запрос с помощью динамических фильтров
             base_query = db.query(Otrasl)
 

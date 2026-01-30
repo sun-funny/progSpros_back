@@ -3,13 +3,14 @@ from sqlalchemy import and_, func, case
 
 
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
-from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params, mapping
 from progSpros_back.model.db_models_ps import Prirost, PSDATA, reference_models, Otrasl, FedState, Regions, GroupPost, Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr, VersProgn, Proizv
 from progSpros_back.model.mappings_ps import vers_mapping, yn_mapping
-from progSpros_back.database_ps import db
+from progSpros_back.database_ps import set_db_connection
 
 def get_query(request, yearfrom, yearto, date):
     try:
+        db = set_db_connection()
         # Получить фильтр-параметры из запроса
         filter_params = create_filter_params(request)
         # Если не заданы глобальные параметры, взять их из session
@@ -53,7 +54,7 @@ def get_query(request, yearfrom, yearto, date):
             )
         )
 
-        base_query = apply_dynamic_filters(base_query, PSDATA, filter_params, db, reference_models)
+        base_query = apply_dynamic_filters(base_query, PSDATA, filter_params, DB().set_connection(), reference_models)
 
         sum_pr = request.args.get('sum_pr', 0, type=int)
 
@@ -123,7 +124,7 @@ def get_query(request, yearfrom, yearto, date):
         # Продолжить создавать основной запрос
         query = ots_pr_spr_pot_query(years, base_query, Prirost, PSDATA, Otrasl, FedState,
                                     Regions, GroupPost, StPotr, StGaz, Infr, Dogovor, TU,
-                                    yearfrom, yearto, Contragent, VersProgn, db)
+                                    yearfrom, yearto, Contragent, VersProgn, DB().set_connection())
 
         #from sqlalchemy.dialects import postgresql
         # This will print the query with parameters inline
@@ -155,7 +156,7 @@ def ots_pr_spr_pot_query(
     ).label("prirost")
 
     query = (
-        db.query(
+        DB().set_connection().query(
             tab_fo_d314.name.label("fo"),
             tab_region_d314.name.label("region"),
             case(

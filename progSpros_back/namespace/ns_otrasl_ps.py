@@ -7,10 +7,10 @@ from flask_restx import Namespace, Resource
 
 
 # Import the database session
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import set_db_connection, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import otrasl_query, query_prirost
-from progSpros_back.functions.utility_functions_ps import create_filter_params, sum_prirost, set_db_connection, mapping, \
+from progSpros_back.functions.utility_functions_ps import create_filter_params, sum_prirost, mapping, \
     to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, VersProgn, GroupPost, FedState, Regions
 from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
@@ -46,7 +46,7 @@ class PrSprOtraslDATA(Resource):
             - принимает аргументы yearfrom, yearto
         """
         try:
-            #db = set_db_connection()
+            db = set_db_connection()
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
             grpost_mapping = mapping(GroupPost)

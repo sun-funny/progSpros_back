@@ -165,4 +165,3 @@ def build_export_xlsx(template_name: str, headers: Dict[str, ColumnDescriptor], 
     wb.save(bio)
     return bio.getvalue()
 
-

@@ -8,10 +8,10 @@ from flask_restx import fields, Namespace, Resource, reqparse
 
 
 # Import the database session
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import cache, errorhandler, set_db_connection#, db
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 # from progSpros_back.functions.query_functions_ps import fo_region_query
-from progSpros_back.functions.utility_functions_ps import create_filter_params, set_db_connection, mapping
+from progSpros_back.functions.utility_functions_ps import create_filter_params#, set_db_connection, mapping
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, FedState, Regions, group_regions_relation, GroupRegions
 
 
@@ -52,6 +52,7 @@ class FORegionDATA(Resource):
         Возвращает регионы в зависимости от выбранного округа
         """
         try:
+            db = set_db_connection()
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
 
@@ -165,6 +166,7 @@ class FORegionDATA(Resource):
 
             for group_data in groups_data:
                 try:
+                    db = set_db_connection()
                     group_id = group_data.get('group_id')
                     group_name = group_data.get('group_name')
                     regions = group_data.get('regions', [])
@@ -228,6 +230,7 @@ class FORegionDATA(Resource):
             # groups_ids = data['fo_group']
 
             try:
+                db = db.set_connection()
                 delete_stmt = delete(group_regions_relation).where(
                             (group_regions_relation.c.id_group_region.in_(groups_ids))
                         )

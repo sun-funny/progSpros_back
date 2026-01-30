@@ -2,9 +2,32 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import create_engine
 from progSpros_back.config_ps import Config
 
-# Создание движка SQLAlchemy
-engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)
-db = scoped_session(sessionmaker(bind=engine))
+# # Создание движка SQLAlchemy
+# engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)
+# db = scoped_session(sessionmaker(bind=engine))
+
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class DB(metaclass=SingletonMeta):
+    def __init__(self, direct: bool):
+        if direct:
+            self.engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)
+            self.session = scoped_session(sessionmaker(bind=self.engine))
+        else:
+            self.session = g.session
+
+def set_db_connection():
+    db = DB(direct=True) 
+    return db.session
+def get_db_engine():
+    db = DB(direct=True)
+    return db.engine   
 
 from flask_caching import Cache
 

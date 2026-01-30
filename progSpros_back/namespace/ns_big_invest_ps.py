@@ -5,11 +5,11 @@ from sqlalchemy import func, select, and_, distinct, or_
 from flask import jsonify, session, request
 from flask_restx import Namespace, Resource
 # Import the database session
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import set_db_connection, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import big_invest_query_potr, query_prirost_potr_table
 from progSpros_back.functions.utility_functions_ps import create_filter_params, substitute_in_json, sum_prirost, \
-    set_db_connection, mapping, to_date
+    mapping, to_date #, set_db_connection
 from progSpros_back.model.db_models_ps import Prirost, reference_models, Otrasl, FedState, Regions, GroupPost, \
     Contragent, StPotr, StGaz, PG, Dogovor, TU, Infr
 from progSpros_back.model.mappings_ps import yn_mapping, vers_mapping
@@ -58,7 +58,7 @@ class BigInvest(Resource):
             - принимает аргументы yearfrom, yearto
         """
         try:
-            #db = set_db_connection()
+            db = set_db_connection()
             # Получить фильтр-параметры из запроса
             filter_params = create_filter_params(request)
             # Если не заданы глобальные параметры, взять их из session

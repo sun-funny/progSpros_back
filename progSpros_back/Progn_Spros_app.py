@@ -13,7 +13,6 @@ from sqlalchemy import select, distinct, not_, literal, func, and_  # Основ
 from werkzeug.exceptions import HTTPException, InternalServerError
 
 
-#absimport
 from progSpros_back.model.db_models_ps import Base, PSDATA, reference_models  # Модели баз данных
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters  # Функции отображения данных на графике
 from progSpros_back.functions.utility_functions_ps import create_filter_params  # Полезные функции
@@ -35,8 +34,8 @@ from progSpros_back.namespace.ots_pr_spr.ns_ots_pr_spr_pot_ps import ns_ots_pr_s
 from progSpros_back.namespace.ns_group_post_ps import ns_group_post_ps
 from progSpros_back.namespace.ns_data_xls_ps import ns_data_xls_ps
 # Работа с базой данных
-from progSpros_back.database_ps import db, engine, cache
-#absimport
+from progSpros_back.database_ps import get_db_engine, cache
+
 # Импорт Flask-Restx
 from flask_restx import Api, Resource, Namespace  # Классы Flask-Restx для создания API
 
@@ -61,7 +60,7 @@ cache.init_app(app)
 
 # Создание таблиц базы данных
 with app.app_context():
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_db_engine())
 
 # Настройка ведения журнала
 logging.basicConfig(level=logging.INFO)

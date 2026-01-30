@@ -7,7 +7,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from flask import g
 
 from progSpros_back.functions.query_functions_ps import mapping_query, mapping_vers
-from progSpros_back.database_ps import db
+from progSpros_back.database_ps import set_db_connection
 from progSpros_back.config_ps import Config
 
 def create_filter_params(request):
@@ -203,11 +203,12 @@ def sum_prirost(data, sum_param):
 
     return sum_param
 
-def set_db_connection():
-    return g.session
+# def set_db_connection():
+    
+#     return g.session
 
 def mapping(map):
-    # db = set_db_connection()
+    db = set_db_connection()
     base_query = db.query(map)
     query = mapping_query(base_query, map)
 

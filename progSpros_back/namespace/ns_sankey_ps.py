@@ -6,10 +6,10 @@ from flask_restx import Namespace, Resource
 
 
 # Import the database session
-from progSpros_back.database_ps import db, cache, errorhandler
+from progSpros_back.database_ps import set_db_connection, cache, errorhandler
 from progSpros_back.functions.chart_data_functions_ps import apply_dynamic_filters
 from progSpros_back.functions.query_functions_ps import sankey_query, sankey_query2, sankey_query3, sankey_query4, sankey_query5
-from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure, set_db_connection, \
+from progSpros_back.functions.utility_functions_ps import create_filter_params, create_structure, \
     mapping, to_date
 from progSpros_back.model.db_models_ps import PSDATA, reference_models, Otrasl, FedState, Regions, \
     GroupPost, Proizv
@@ -44,7 +44,7 @@ class Sankey(Resource):
             - принимает аргументы yearfrom, yearto, date
         """
         try:
-            #db = set_db_connection()
+            db = set_db_connection()
 
             # Мэппинги из справочников
             otr_mapping = mapping(Otrasl)
