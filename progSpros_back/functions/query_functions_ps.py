@@ -1,4 +1,4 @@
-﻿from typing import Dict, Tuple
+﻿from typing import Dict, List, Tuple
 from sqlalchemy import func, and_, case
 
 '''# Округа и регионы
@@ -719,5 +719,9 @@ def all_data_upload_query(db, base_table, columns: Dict, join_cols_dict: Dict):
             join_list.append(column.table)
     query = db.query(base_table).with_entities(*entities_list)
     for joined_table in join_list:
-        query = query.join(joined_table, join_cols_dict[joined_table.name]==joined_table.c.id)
+        query = query.join(joined_table, join_cols_dict[joined_table.name]==joined_table.c.id, isouter=True)
     return query
+
+# # Запрос для справочника регионов по ФО
+# def fo_regions_map_query(db, regions: List[str]):
+#     query = db.query()

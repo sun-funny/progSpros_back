@@ -54,7 +54,7 @@ def get_query(request, yearfrom, yearto, date):
             )
         )
 
-        base_query = apply_dynamic_filters(base_query, PSDATA, filter_params, DB().set_connection(), reference_models)
+        base_query = apply_dynamic_filters(base_query, PSDATA, filter_params, db, reference_models)
 
         sum_pr = request.args.get('sum_pr', 0, type=int)
 
@@ -124,7 +124,7 @@ def get_query(request, yearfrom, yearto, date):
         # Продолжить создавать основной запрос
         query = ots_pr_spr_pot_query(years, base_query, Prirost, PSDATA, Otrasl, FedState,
                                     Regions, GroupPost, StPotr, StGaz, Infr, Dogovor, TU,
-                                    yearfrom, yearto, Contragent, VersProgn, DB().set_connection())
+                                    yearfrom, yearto, Contragent, VersProgn, set_db_connection())
 
         #from sqlalchemy.dialects import postgresql
         # This will print the query with parameters inline
@@ -156,7 +156,7 @@ def ots_pr_spr_pot_query(
     ).label("prirost")
 
     query = (
-        DB().set_connection().query(
+        set_db_connection().query(
             tab_fo_d314.name.label("fo"),
             tab_region_d314.name.label("region"),
             case(
