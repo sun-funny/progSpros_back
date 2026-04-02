@@ -101,12 +101,12 @@ class DataXls(DatasetInfoMixin):
             date = self.get_date(date)
             
             data = db.execute(create_simple_query(db=db, base_table=self.DATASET, columns=DATA_COLS, join_cols_dict=self.JOIN_COLS, isouter=True).filter(PSDATA.date==date)).mappings().all()
-            print('first', data, '\n\n\n')
+            
             data, years_range = prepare_all_data(titles=DATA_COLS, rows=data)
             
             TABLE = TableDescriptor(list_name='Таблица', data=data, main_cols=DATA_COLS)
             f = ExcelBuilder().build_export_xlsx('Шаблон Прогнозный спроc.xlsx', TABLE)
-            print(data)
+            
             return send_file(
                 BytesIO(f),
                 mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -121,7 +121,7 @@ class DataXls(DatasetInfoMixin):
             #     download_name="Прогнозный спрос.xlsx",
             #     max_age=0,
             # )
-            return 
+            # return 
         except Exception as e:
             ns_data_xls_ps.abort(*errorhandler(e))
         
