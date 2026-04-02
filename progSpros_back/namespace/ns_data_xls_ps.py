@@ -6,11 +6,12 @@ from flask import request, send_file
 from werkzeug.exceptions import BadRequest
 from datetime import datetime
 from sqlalchemy import and_, case, func, RowMapping, cast, Float, or_
+from sqlalchemy.orm import scoped_session
 
 # Import the database session
 from progSpros_back.database_ps import errorhandler, set_db_connection
 from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr, StGaz
-from progSpros_back.model.mappings_ps import yn_mapping, tick_mapping
+from progSpros_back.model.mappings_ps import yn_mapping, tick_mapping, vers_mapping
 from progSpros_back.functions.query_functions_ps import check_optional_cols, create_simple_query, get_version_info_cte, modify_optional_column
 #from progSpros_back.functions.utility_functions_ps import set_db_connection, db
 from progSpros_back.functions.file_upload_functions_ps import CaseDescriptor, ColumnDescriptor, ExcelBuilder, TableDescriptor, prepare_all_data#!, build_export_xlsx
@@ -150,13 +151,18 @@ class СomparisonDataXls(DatasetInfoMixin):
         """
 
         try:
-            db = set_db_connection()
+            db : scoped_session = set_db_connection()
 
             args = parser.parse_args()
             
             date1 = self.get_date(args['date1'])
             date2 = self.get_date(args['date2'])
-            
+            # fo = args.get('fo')
+            # region = args.get('region')
+            if ((vers := args.pop('vers', None)) is not None):
+                vers = {value: key for key, value in vers_mapping.items()}[vers]
+                vers = db.query(VersProgn.name).filter(VersProgn.id == vers).one_or_none()[0]
+                # print(vers)
             DATE_CTE_DATA_COLS = {
                 'fo': ColumnDescriptor(db_column=FedState.name),
                 'region': ColumnDescriptor(db_column=Regions.name),
@@ -164,7 +170,7 @@ class СomparisonDataXls(DatasetInfoMixin):
             }
 
             TABLE_1_OPTIONAL_COLS = {
-                'ver': ColumnDescriptor(db_column=VersProgn.name, excel_title='Вероятность реализации проекта', is_filter=True), # Вероятность реализации
+                'vers': ColumnDescriptor(db_column=VersProgn.name, excel_title='Вероятность реализации проекта', is_filter=True), # Вероятность реализации
                 'field': ColumnDescriptor(db_column=Otrasl.name, excel_title='Отрасль'), # Отрасль
                 'status': ColumnDescriptor(db_column=StPotr.name, excel_title='Статус потребителя'), # Статус потребителя
                 'group': ColumnDescriptor(db_column=GroupPost.name, excel_title='Группа поставщиков'), # Группа поставщиков
@@ -184,6 +190,11 @@ class СomparisonDataXls(DatasetInfoMixin):
             date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
             date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
             
+            # for cte in {date1_cte, date2_cte}:
+            #     for filter_item in {fo, region, vers}:
+            #         if filter_item is not None:
+            #             cte = cte.filter()
+
             version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte, optional_cols=TABLE_1_OPTIONAL_COLS)
             
             YEARLY_DATA_CTE_DATA_COLS = {
@@ -224,8 +235,9 @@ class СomparisonDataXls(DatasetInfoMixin):
                 TABLE_1_OPTIONAL_COLS[id] = modify_optional_column(cte=version_info_cte, id=id, col_desc=col_desc)
 
             TABLE_1_DATA_COLS.update(TABLE_1_YEARS_COLS)
-            TABLE_1_DATA_COLS['ver'] = TABLE_1_OPTIONAL_COLS['ver']
-            TABLE_1_OPTIONAL_COLS.pop('ver')
+            TABLE_1_DATA_COLS['vers'] = TABLE_1_OPTIONAL_COLS['vers']
+            # TABLE_1_DATA_COLS['ver'].is_filter = True
+            TABLE_1_OPTIONAL_COLS.pop('vers')
             TABLE_2_COLS = copy(TABLE_1_DATA_COLS)
                 
             # TABLE_2_COLS['ver'] = TABLE_1_OPTIONAL_COLS['ver']
@@ -236,9 +248,11 @@ class СomparisonDataXls(DatasetInfoMixin):
             data_1_query = create_simple_query(db=db, base_table=self.DATASET, columns=ALL_TABLE_1_COLS, 
                                                join_cols_dict=self.JOIN_COLS, isouter=True, 
                                                select_from=yearly_data_cte)
+            
             data_2_query = create_simple_query(db=db, base_table=self.DATASET, columns=TABLE_2_COLS, 
                                                join_cols_dict=self.JOIN_COLS, isouter=True, 
                                                select_from=yearly_data_cte)
+            
             data_1_query = data_1_query.join(version_info_cte, 
                             and_(yearly_data_cte.c.fo == version_info_cte.c.fo, 
                                 yearly_data_cte.c.region == version_info_cte.c.region, 
@@ -247,15 +261,20 @@ class СomparisonDataXls(DatasetInfoMixin):
             data_2_query = data_2_query.join(version_info_cte, 
                             and_(yearly_data_cte.c.fo == version_info_cte.c.fo, 
                                 yearly_data_cte.c.region == version_info_cte.c.region, 
-                                yearly_data_cte.c.potr == version_info_cte.c.potr)).filter(getattr(version_info_cte.c, 'ver_count', 0) > 1) 
+                                yearly_data_cte.c.potr == version_info_cte.c.potr)).filter(getattr(version_info_cte.c, 'vers_count', 0) > 1) 
             
+            data_filters = []
+            if vers is not None:
+                data_filters.append(func.coalesce(version_info_cte.c.vers_date1, version_info_cte.c.vers_date2) == vers)
+
             data_1_query = data_1_query.filter(or_(*[getattr(version_info_cte.c, f'{id}_count', 0) > 1 for id in TABLE_1_OPTIONAL_COLS.keys()]))
 
             for id, col in ALL_TABLE_1_COLS.items():
                 if col.is_filter and id in args and (arg:=args[id]):
-                    data_1_query = data_1_query.filter(col.db_column == arg)
-                    data_2_query = data_2_query.filter(col.db_column == arg)
-
+                    data_filters.append(col.db_column == arg)
+                    
+            data_1_query = data_1_query.filter(and_(*data_filters))
+            data_2_query = data_2_query.filter(and_(*data_filters))
             
             # optional_list_group_by = []
             # optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_count') for id in TABLE_1_OPTIONAL_COLS.keys()])
@@ -296,12 +315,12 @@ class СomparisonDataXls(DatasetInfoMixin):
             TABLE_1 = TableDescriptor(list_name='Таблица 1',
                                       data=data1, 
                                       main_cols=TABLE_1_DATA_COLS, optional_cols=TABLE_1_OPTIONAL_COLS, 
-                                      highlight_pattern=changes_pattern, highlighted_cols=list(list(TABLE_1_OPTIONAL_COLS.keys()) + ['ver']), 
+                                      highlight_pattern=changes_pattern, highlighted_cols=list(list(TABLE_1_OPTIONAL_COLS.keys()) + ['vers']), 
                                       groupings_headers_height=1)
             TABLE_2 = TableDescriptor(list_name='Таблица 2',
                                       data=data2, 
                                       main_cols=TABLE_2_COLS, #optional_cols=TABLE_2_OPTIONAL_COLS, 
-                                      highlight_pattern=changes_pattern, highlighted_cols=['ver'],#TABLE_2_OPTIONAL_COLS.keys(), 
+                                      highlight_pattern=changes_pattern, highlighted_cols=['vers'],#TABLE_2_OPTIONAL_COLS.keys(), 
                                       groupings_headers_height=1)
             
 

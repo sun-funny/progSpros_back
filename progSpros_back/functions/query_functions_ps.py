@@ -770,7 +770,7 @@ def modify_optional_column(cte: CTE, id: str, col_desc: ColumnDescriptor):
                                     func.min(getattr(cte.c, f'{id}_date2')))
                                 )
                                 ,
-                                else_=cast(func.min(getattr(cte.c, f'{id}_date1')), Text)))
+                                else_=cast(func.min(func.coalesce(getattr(cte.c, f'{id}_date1'), getattr(cte.c, f'{id}_date2'))), Text)))
     col_desc.db_column=None
 
     return col_desc
@@ -823,6 +823,7 @@ def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, opt
         )
     )
     version_info = version_info.cte('version_info')
+
     return version_info
 
 def check_optional_cols(db: scoped_session, base_query: Query, optional_cols: Dict[str, ColumnDescriptor], pattern: Optional[str] = None) -> List[str]:
