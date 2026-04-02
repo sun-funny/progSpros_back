@@ -18,7 +18,6 @@ ns_years_ps = Namespace('Years', description='Годы')
 
 @ns_years_ps.route('/years')
 @ns_years_ps.response(200, 'Success')
-
 class YearDATA(Resource):
     def get(self):
         try:

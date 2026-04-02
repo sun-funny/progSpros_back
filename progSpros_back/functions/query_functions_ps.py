@@ -1,5 +1,10 @@
-﻿from typing import Dict, List, Tuple
-from sqlalchemy import func, and_, case
+﻿from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+from sqlalchemy import func, and_, case, CTE, literal, select, Case, text, Text
+from sqlalchemy.sql.expression import cast
+from sqlalchemy.orm import scoped_session, Query
+from progSpros_back.functions.file_upload_functions_ps import CaseDescriptor, ColumnDescriptor
+# from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr, StGaz
 
 '''# Округа и регионы
 def fo_region_query(base_query, tab_region_d314, tab_fo_d314):
@@ -708,19 +713,174 @@ def mapping_vers(base_query, tab):
 
 
 # Запрос для выгрузки плоской даты
-def all_data_upload_query(db, base_table, columns: Dict, join_cols_dict: Dict):
+def create_simple_query(db: scoped_session, base_table, columns: Dict[str, ColumnDescriptor], join_cols_dict: Dict,
+                        distinct: Optional[bool] = False, isouter: Optional[bool] = False, select_from = None) -> Query:
     entities_list = []
-    join_list = []
+    joined_tables_list = []
+    joined_expressions_list: List[Tuple] = []
     for label, column_d in columns.items():
-        column = column_d.db_column
+        if column_d.case_desc is not None:
+            column = column_d.case_desc.sql_case
+            if column_d.case_desc.join is not None:
+                joined_expressions_list.append(column_d.case_desc.join)
+        else:
+            column = column_d.db_column
+            if column.table != base_table.__table__ and column.table.name in join_cols_dict:
+                joined_tables_list.append(column.table)
+        if column_d.aggr_func is not None:
+                column = column_d.aggr_func(column)
+        
+        if column_d.mapping is not None:
+            when_clauses = []
+            for key, value in column_d.mapping.items():
+                when_clauses.append((cast(column, Text) == key, literal(value)))
+            column = case(*when_clauses, else_=cast(column, Text))
         entities_list.append(column.label(label))
-        if column.table != base_table.__table__:
-            
-            join_list.append(column.table)
-    query = db.query(base_table).with_entities(*entities_list)
-    for joined_table in join_list:
-        query = query.join(joined_table, join_cols_dict[joined_table.name]==joined_table.c.id, isouter=True)
+        
+    query = db.query(base_table)
+    # print('\n'*10, str(query.with_labels().statement))
+    # print(select_from)
+    if select_from is not None:
+        query = query.select_from(select_from)
+    else:
+        query = query.select_from(base_table)
+    # print('\n*'*10, str(query.with_labels().statement))
+    query = query.with_entities(*entities_list)
+    if distinct:
+        query = query.distinct()
+    # print('\n'*10, str(query.with_labels().statement))
+    # print('\n*'*10, str(query.with_labels().statement))
+    for joined_table in joined_tables_list:
+        query = query.join(joined_table, onclause=join_cols_dict[joined_table.name]==joined_table.c.id, isouter=isouter)
+    for table, expr in joined_expressions_list:
+        query = query.join(table, onclause=expr, isouter=isouter)
     return query
+
+
+###### Сравнительные таблицы
+
+### Запросы для выгрузки данных Таблицы 1 (сравнительной)
+def modify_optional_column(cte: CTE, id: str, col_desc: ColumnDescriptor):
+    col_desc.case_desc=CaseDescriptor(sql_case = case(
+                                (getattr(cte.c, f'{id}_count', 0) > 1,
+                                func.concat(
+                                    'изменение значения с ', #! склонения
+                                    getattr(cte.c, f'{id}_date1'),
+                                    ' на ',
+                                    getattr(cte.c, f'{id}_date2'))
+                                )
+                                ,
+                                else_=cast(getattr(cte.c, f'{id}_date1'), Text)))
+    col_desc.db_column=None
+
+    return col_desc
+                   
+
+def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, optional_cols: Dict[str, ColumnDescriptor]) -> CTE:
+    optional_cols_versions = []
+
+    for id, desc in optional_cols.items():
+        if desc.mapping is not None:
+            when_clauses_1 = []
+            when_clauses_2 = []
+            for key, value in desc.mapping.items():
+                when_clauses_1.append((cast(getattr(date1_cte.c, id), Text) == key, literal(value)))
+                when_clauses_2.append((cast(getattr(date2_cte.c, id), Text) == key, literal(value)))
+            column_1 = case(*when_clauses_1, else_=cast(getattr(date1_cte.c, id), Text))
+            column_2 = case(*when_clauses_2, else_=cast(getattr(date2_cte.c, id), Text))
+        else:
+            column_1 = getattr(date1_cte.c, id)
+            column_2 = getattr(date2_cte.c, id)
+        optional_cols_versions.append(column_1.label(f'{id}_date1'))
+        optional_cols_versions.append(column_2.label(f'{id}_date2'))
+        optional_cols_versions.append(case(
+                                        (
+                                            and_(
+                                                getattr(date1_cte.c, id).isnot(None),
+                                                getattr(date2_cte.c, id).isnot(None),
+                                                getattr(date1_cte.c, id) != getattr(date2_cte.c, id)
+                                            ),
+                                            2
+                                        )
+                                    ,
+                                    else_=1
+                                ).label(f'{id}_count'))
+
+    version_info = db.query().with_entities(
+        func.coalesce(date1_cte.c.fo, date2_cte.c.fo).label('fo'),
+        func.coalesce(date1_cte.c.region, date2_cte.c.region).label('region'),
+        func.coalesce(date1_cte.c.potr, date2_cte.c.potr).label('potr'),
+        *optional_cols_versions,
+    ).select_from(
+        date1_cte.outerjoin(
+            date2_cte,
+            and_(
+                date1_cte.c.fo == date2_cte.c.fo,
+                date1_cte.c.region == date2_cte.c.region,
+                date1_cte.c.potr == date2_cte.c.potr
+            ),
+            full=True
+        )
+    )
+    version_info = version_info.cte('version_info')
+    return version_info
+
+def check_optional_cols(db: scoped_session, base_query: Query, optional_cols: Dict[str, ColumnDescriptor], pattern: Optional[str] = None) -> List[str]:
+    if hasattr(base_query, 'statement'):
+        compiled = base_query.statement.compile(
+            dialect=db.bind.dialect,
+            compile_kwargs={"literal_binds": True}
+        )
+    elif hasattr(base_query, 'compile'):
+        compiled = base_query.compile(
+            dialect=db.bind.dialect,
+            compile_kwargs={"literal_binds": True}
+        )
+    else:
+        compiled = base_query
+
+    sql_string = str(compiled)
+
+    pattern_matcher = lambda col : f'subquery.{col}::text'
+    if pattern is not None:
+        pattern_matcher = lambda col : f'CASE WHEN subquery.{col}::text ~ \'{pattern}\' THEN 1 END'
+
+    checks = [f"COUNT({pattern_matcher(col)}) > 0 AS {col}_has_data" for col in optional_cols.keys()]
+    
+    query = f"""
+        WITH subquery AS (
+            {sql_string}
+        )
+        SELECT 
+            {', '.join(checks)}
+        FROM subquery
+    """
+    result = db.execute(text(query)).fetchone()
+    # print('result', result)
+    return [col for idx, col in enumerate(optional_cols.keys()) if result[idx]]
+    # checks = []
+    # for col in optional_cols.keys():
+    #     checks.append(f"COUNT({col}) > 0 AS {col}_has_data")
+    # check_query = f"""
+    #     WITH subquery AS (
+    #         {base_query.subquery()}
+    #     )
+    #     SELECT 
+    #         {', '.join(checks)}
+    #     FROM subquery
+    # """
+    # result = db.execute(text(check_query)).fetchone()
+    # non_empty_cols = []
+    # for col in optional_cols.keys():
+    #     if getattr(result, f'{col}_has_data'):
+    #         non_empty_cols.append(col)
+    
+    # return non_empty_cols
+
+# # Запрос для данных сравнительной таблицы 1
+# def get_table_1_query(main_cols: Dict[str, ColumnDescriptor], optional_cols: Dict[str, ColumnDescriptor], date1: datetime, date2: datetime) -> Query:
+
+
 
 # # Запрос для справочника регионов по ФО
 # def fo_regions_map_query(db, regions: List[str]):

@@ -9,10 +9,11 @@ services:
       - POSTGRES_DB=postgres
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/progSpros
     volumes:
-      - .:/progSpros_back/
+      - ./progSpros_back:/progSpros_back/
     restart: unless-stopped
     ports:
       - "5001:5001"
+    # command: ls progSpros_back/progSpros_back
     command: ["sh", "-c", "python -m progSpros_back.Progn_Spros_app"]
     depends_on:
       - db

@@ -18,7 +18,7 @@ class DB(metaclass=SingletonMeta):
     def __init__(self, direct: bool):
         self._direct = direct
         if direct:
-            self.engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30)
+            self.engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, pool_size=30, echo=False)
             self.session = scoped_session(sessionmaker(bind=self.engine))
     def session(self):
         return self.session if self._direct else g.session

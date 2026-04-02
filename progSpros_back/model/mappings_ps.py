@@ -139,8 +139,8 @@ region_mapping = {
 }
 
 yn_mapping = {
-    1: "Да",
-    2: "Нет"
+    '1': "Да",
+    '2': "Нет"
 }
 tick_mapping = {
     'X': "нет",
