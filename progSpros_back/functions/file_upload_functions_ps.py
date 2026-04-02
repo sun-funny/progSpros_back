@@ -329,7 +329,7 @@ class ExcelBuilder:
         template_cells = [self.main_ws.cell(self.start_row, c) for c in range(1, max_col + 1)]
         template_styles = [c._style for c in template_cells]
         template_numfmts = [c.number_format for c in template_cells]
-
+        print(template_headers_mapper)
         rows_touched = set()
         del_cells = []
         for (r, col) in self.main_ws._cells.keys():
@@ -397,7 +397,7 @@ class ExcelBuilder:
 
             self._build_templates_mapper()
             self._build_optionals_mapper()
-
+            
             self._build_main_template(self.data[0].keys())
 
             self._write_data()

@@ -762,15 +762,15 @@ def create_simple_query(db: scoped_session, base_table, columns: Dict[str, Colum
 ### Запросы для выгрузки данных Таблицы 1 (сравнительной)
 def modify_optional_column(cte: CTE, id: str, col_desc: ColumnDescriptor):
     col_desc.case_desc=CaseDescriptor(sql_case = case(
-                                (getattr(cte.c, f'{id}_count', 0) > 1,
+                                (func.min(getattr(cte.c, f'{id}_count', 0)) > 1,
                                 func.concat(
                                     'изменение значения с ', #! склонения
-                                    getattr(cte.c, f'{id}_date1'),
+                                    func.min(getattr(cte.c, f'{id}_date1')),
                                     ' на ',
-                                    getattr(cte.c, f'{id}_date2'))
+                                    func.min(getattr(cte.c, f'{id}_date2')))
                                 )
                                 ,
-                                else_=cast(getattr(cte.c, f'{id}_date1'), Text)))
+                                else_=cast(func.min(getattr(cte.c, f'{id}_date1')), Text)))
     col_desc.db_column=None
 
     return col_desc

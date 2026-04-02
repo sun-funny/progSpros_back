@@ -181,8 +181,8 @@ class СomparisonDataXls(DatasetInfoMixin):
             }
 
             DATE_CTE_DATA_COLS.update(TABLE_1_OPTIONAL_COLS)
-            date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=True, isouter=False).filter(self.DATASET.date==date1).cte('date1_data')
-            date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=True, isouter=False).filter(self.DATASET.date==date2).cte('date2_data')
+            date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
+            date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
             
             version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte, optional_cols=TABLE_1_OPTIONAL_COLS)
             
@@ -201,11 +201,10 @@ class СomparisonDataXls(DatasetInfoMixin):
                 'fo': ColumnDescriptor(db_column=yearly_data_cte.c.fo, excel_title='Федеральный округ', is_filter=True),
                 'region': ColumnDescriptor(db_column=yearly_data_cte.c.region, excel_title='Регион', is_filter=True),
                 'potr': ColumnDescriptor(db_column=yearly_data_cte.c.potr, excel_title='Потребитель'),
-                'ver_count': ColumnDescriptor(db_column=version_info_cte.c.ver_count),
-                'ver_date1': ColumnDescriptor(db_column=version_info_cte.c.ver_date1),
-                'ver_date2': ColumnDescriptor(db_column=version_info_cte.c.ver_date2),
+                # 'ver_count': ColumnDescriptor(db_column=version_info_cte.c.ver_count),
+                # 'ver_date1': ColumnDescriptor(db_column=version_info_cte.c.ver_date1),
+                # 'ver_date2': ColumnDescriptor(db_column=version_info_cte.c.ver_date2),
             }
-
 
             # TABLE_2_DATA_COLS = copy(TABLE_1_DATA_COLS)
 
@@ -225,11 +224,15 @@ class СomparisonDataXls(DatasetInfoMixin):
                 TABLE_1_OPTIONAL_COLS[id] = modify_optional_column(cte=version_info_cte, id=id, col_desc=col_desc)
 
             TABLE_1_DATA_COLS.update(TABLE_1_YEARS_COLS)
+            TABLE_1_DATA_COLS['ver'] = TABLE_1_OPTIONAL_COLS['ver']
+            TABLE_1_OPTIONAL_COLS.pop('ver')
             TABLE_2_COLS = copy(TABLE_1_DATA_COLS)
+                
+            # TABLE_2_COLS['ver'] = TABLE_1_OPTIONAL_COLS['ver']
             ALL_TABLE_1_COLS = copy(TABLE_1_DATA_COLS)
             # ALL_TABLE_1_COLS.update(TABLE_1_YEARS_COLS)
             ALL_TABLE_1_COLS.update(TABLE_1_OPTIONAL_COLS)
-
+            
             data_1_query = create_simple_query(db=db, base_table=self.DATASET, columns=ALL_TABLE_1_COLS, 
                                                join_cols_dict=self.JOIN_COLS, isouter=True, 
                                                select_from=yearly_data_cte)
@@ -254,21 +257,22 @@ class СomparisonDataXls(DatasetInfoMixin):
                     data_2_query = data_2_query.filter(col.db_column == arg)
 
             
-            optional_list_group_by = []
-            optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_count') for id in TABLE_1_OPTIONAL_COLS.keys()])
-            optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_date1') for id in TABLE_1_OPTIONAL_COLS.keys()])
-            optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_date2') for id in TABLE_1_OPTIONAL_COLS.keys()])
+            # optional_list_group_by = []
+            # optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_count') for id in TABLE_1_OPTIONAL_COLS.keys()])
+            # optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_date1') for id in TABLE_1_OPTIONAL_COLS.keys()])
+            # optional_list_group_by.extend([getattr(version_info_cte.c, f'{id}_date2') for id in TABLE_1_OPTIONAL_COLS.keys()])
             data_1_query = data_1_query.group_by(yearly_data_cte.c.fo,
                                                 yearly_data_cte.c.region,
-                                                yearly_data_cte.c.potr,
-                                                *optional_list_group_by)
+                                                yearly_data_cte.c.potr)
+                                                # *optional_list_group_by)
             data_2_query = data_2_query.group_by(yearly_data_cte.c.fo,
                                                 yearly_data_cte.c.region,
-                                                yearly_data_cte.c.potr,
-                                                getattr(version_info_cte.c, 'ver_count'),
-                                                getattr(version_info_cte.c, 'ver_date1'),
-                                                getattr(version_info_cte.c, 'ver_date2'))
-            
+                                                yearly_data_cte.c.potr)
+                                                # getattr(version_info_cte.c, 'ver_count'),
+                                                # getattr(version_info_cte.c, 'ver_date1'),
+                                                # getattr(version_info_cte.c, 'ver_date2'))
+            # data_2_query = create_simple_query(db=db, base_table=self.DATASET, columns=TABLE_2_COLS, join_cols_dict=self.JOIN_COLS, isouter=True, select_from=data_2_query)
+            # for 
             data_1_query = data_1_query.order_by(
                             yearly_data_cte.c.fo,
                             yearly_data_cte.c.region,
@@ -279,8 +283,10 @@ class СomparisonDataXls(DatasetInfoMixin):
                             yearly_data_cte.c.region,
                             yearly_data_cte.c.potr
                         )
-            # print('\n*'*10, str(data_1_query.with_labels().statement))
+            # print('\n*'*10, str(data_1_query.with_labels().statement), '\n*'*10)
+            # print('\n*'*10, str(data_2_query.with_labels().statement), '\n*'*10)
             data1 : List[RowMapping] = db.execute(data_1_query).mappings().all()
+            data2 : List[RowMapping] = db.execute(data_2_query).mappings().all(); print(data2)
             changes_pattern = '^изменение значения с .+ на .+$'
             non_empty_cols : List[str] = check_optional_cols(db=db, base_query=data_1_query, optional_cols=TABLE_1_OPTIONAL_COLS, pattern=changes_pattern)
 
@@ -290,38 +296,17 @@ class СomparisonDataXls(DatasetInfoMixin):
             TABLE_1 = TableDescriptor(list_name='Таблица 1',
                                       data=data1, 
                                       main_cols=TABLE_1_DATA_COLS, optional_cols=TABLE_1_OPTIONAL_COLS, 
-                                      highlight_pattern=changes_pattern, highlighted_cols=TABLE_1_OPTIONAL_COLS.keys(), 
+                                      highlight_pattern=changes_pattern, highlighted_cols=list(list(TABLE_1_OPTIONAL_COLS.keys()) + ['ver']), 
+                                      groupings_headers_height=1)
+            TABLE_2 = TableDescriptor(list_name='Таблица 2',
+                                      data=data2, 
+                                      main_cols=TABLE_2_COLS, #optional_cols=TABLE_2_OPTIONAL_COLS, 
+                                      highlight_pattern=changes_pattern, highlighted_cols=['ver'],#TABLE_2_OPTIONAL_COLS.keys(), 
                                       groupings_headers_height=1)
             
 
 
-            f = ExcelBuilder().build_export_xlsx('Сравнительные таблицы.xlsx', TABLE_1)
-
-
-            return send_file(
-                BytesIO(f),
-                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                as_attachment=True,
-                download_name="Сравнительные таблицы.xlsx",
-                max_age=0,
-            )
-            TABLE_1_DATA_COLS['vers'] = ColumnDescriptor(db_column=version_info_cte.c.vers, excel_title='Вероятность реализации проекта')
-        
-            data2 : List[RowMapping] = db.execute(data_2_query).mappings().all()
-            TABLE_1 = TableDescriptor(list_name='Таблица 2',
-                                      data=data2, 
-                                      main_cols=TABLE_1_DATA_COLS, 
-                                      highlight_pattern=changes_pattern, highlighted_cols=['ver'], 
-                                      groupings_headers_height=1)
-
-
-
-            # TABLE_2_DATA_COLS = copy(TABLE_1_DATA_COLS)
-
-
-
-
-            f = ExcelBuilder().build_export_xlsx('Сравнительные таблицы.xlsx', TABLE_1)
+            f = ExcelBuilder().build_export_xlsx('Сравнительные таблицы.xlsx', TABLE_1, TABLE_2)
 
 
             return send_file(
