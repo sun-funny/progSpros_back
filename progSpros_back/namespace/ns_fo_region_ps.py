@@ -157,6 +157,8 @@ class FORegionDATA(Resource):
     @ns_fo_region_ps.expect(group_regions_request_model)
     def post(self):
         try:
+            
+            db = set_db_connection()
             data = request.get_json()
             
             if not data or 'fo_group' not in data:
@@ -166,7 +168,6 @@ class FORegionDATA(Resource):
 
             for group_data in groups_data:
                 try:
-                    db = set_db_connection()
                     group_id = group_data.get('group_id')
                     group_name = group_data.get('group_name')
                     regions = group_data.get('regions', [])
@@ -221,6 +222,7 @@ class FORegionDATA(Resource):
     @ns_fo_region_ps.expect(region_ids_model)
     def delete(self):
         try:
+            db = set_db_connection()
             # data = request.get_json()
             
             # if not data or 'fo_group' not in data:
@@ -230,7 +232,6 @@ class FORegionDATA(Resource):
             # groups_ids = data['fo_group']
 
             try:
-                db = db.set_connection()
                 delete_stmt = delete(group_regions_relation).where(
                             (group_regions_relation.c.id_group_region.in_(groups_ids))
                         )

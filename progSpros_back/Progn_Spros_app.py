@@ -36,12 +36,23 @@ from progSpros_back.namespace.ns_data_xls_ps import ns_data_xls_ps
 # Работа с базой данных
 from progSpros_back.database_ps import get_db_engine, cache
 
+
 # Импорт Flask-Restx
 from flask_restx import Api, Resource, Namespace  # Классы Flask-Restx для создания API
 
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = secret_key
+
+try:
+    from access_control_center.access_control_center_app import validate_requester
+    from access_control_center.centrilized_database_pool import database_session_pool
+    from central_logging_system.logger import init_logger
+    validate_requester(app)
+    database_session_pool(app)
+    init_logger(app, app_name="progSpros_back")
+except Exception:
+    pass
 
 try:
     from flask_cors import CORS
@@ -58,9 +69,9 @@ api = Api(app,
 
 cache.init_app(app)
 
-# Создание таблиц базы данных
-with app.app_context():
-    Base.metadata.create_all(bind=get_db_engine())
+# # Создание таблиц базы данных
+# with app.app_context():
+#     Base.metadata.create_all(bind=get_db_engine())
 
 # Настройка ведения журнала
 logging.basicConfig(level=logging.INFO)
@@ -82,5 +93,6 @@ api.add_namespace(ns_ots_pr_spr_ps, path='')
 api.add_namespace(ns_group_post_ps, path='')
 api.add_namespace(ns_data_xls_ps, path='')
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+application = app
+# if __name__ == '__main__':
+#     app.run(debug=True, host='0.0.0.0', port=5001)

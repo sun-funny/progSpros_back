@@ -49,25 +49,9 @@ def get_data_exl(query, shown_columns, yearfrom: int, yearto: int, otrasl_total:
     try:
         results = query.session.execute(query).fetchall()
         df = pd.DataFrame(results, columns=[col['name'] for col in query.column_descriptions])
-
-        # Старая версия - Если year_to < sum_pr (Потребление больше), то отсеиваем эти строки
-        #if sum_pr is not None:
-        #    #df = df[df['prirost'] > sum_pr]
-        #    df = df[df[f'y{yearto}'] > sum_pr]
-        # Новая версия оставляем все строки, но подменяем contragent на Прочие потребители для строк, где year_to < sum_pr
         if sum_pr is not None:
-            # Только изменяем contragent для строк, соответствующих условию
-            mask = df[f'y{yearto}'] < sum_pr
-            df.loc[mask, 'contragent'] = "Прочие потребители"
-            # Сбрасываем значения в shown_columns для строк "Прочие потребители"
-            # чтобы они корректно группировались
-            if shown_columns:  # Проверяем, что список не пустой
-                df.loc[mask, shown_columns] = ''
-
-            mask_other = df['contragent'] == 'Прочие потребители'
-            df.loc[mask_other, 'sort'] = '2'
-            df.loc[mask_other, 'otrasl'] = ''
-            df.loc[mask_other, 'otrasl_ord'] = ''
+            #df = df[df['prirost'] > sum_pr]
+            df = df[df[f'y{yearto}'] > sum_pr]
 
     except Exception as e:
         print(f"Error reading SQL data: {e}")
@@ -111,9 +95,8 @@ def process_gaz_program(df: pd.DataFrame, years: List[str], others_columns: List
 def preprocess_data(df: pd.DataFrame, years: List[str], others_columns: List[str]) -> pd.DataFrame:
     """Предварительная обработка данных"""
     # Сначала очищаем данные для специальных контрагентов
-    mask = df['contragent'].isin(['Действующие потребители', 'Прочие потребители']) & (df['otrasl'] != 'Население')
-    cols_to_clear = [c for c in others_columns if c != 'ver_real']
-    df.loc[mask, cols_to_clear] = ''
+    mask = df['contragent'].isin(['Действующие потребители', 'Прочие потребители'])
+    df.loc[mask, others_columns] = ''
 
     # Затем преобразуем категории
     category_mappings = {
@@ -149,8 +132,6 @@ def preprocess_data(df: pd.DataFrame, years: List[str], others_columns: List[str
     for col, mapping in category_mappings.items():
         df[col] = df[columns_mappings[col]].replace(mapping).fillna('Ошибка')
 
-    df['_all_cleared'] = False
-    df.loc[mask, '_all_cleared'] = True
     return df
 
 
@@ -165,6 +146,7 @@ def process_main_groups(df: pd.DataFrame, years: List[str], others_columns: List
             active_sum, others_columns, years,
             styles['header']["действующие потребители"]
         ))
+        print('333111333_otrasl = ', len(active_group[active_group['otrasl'] == otrasl_total]))
         process_otrasl_total_row(active_group, years, agg_dict, 's011', result, otrasl_total)
 
     # 2. Перспективные + Потенциальные вместе как s03
@@ -189,6 +171,7 @@ def process_main_groups(df: pd.DataFrame, years: List[str], others_columns: List
             result.append(create_data_row(display_name, subgroup_sum, years, style))
 
             # внутри них → в.т.ч. Население (s011)
+            print('333111222_otrasl = ', len(subgroup_data[subgroup_data['otrasl'] == otrasl_total]))
             process_otrasl_total_row(subgroup_data, years, agg_dict, 's011', result, otrasl_total)
 
 def process_otrasl_total_row(group: pd.DataFrame, years: List[str], agg_dict: Dict[str, str],
@@ -223,6 +206,7 @@ def process_regional_data(df: pd.DataFrame, years: List[str], others_columns: Li
             active_sum = active_group.agg({**{f'y{y}': 'sum' for y in years}, 'prirost': 'sum'})
             result.append(create_header_row_with_sum(f"{region}, действующие потребители",
                                                      active_sum, others_columns, years, 's01'))
+            print('3331114441_otrasl = ', len(active_group[active_group['otrasl'] == otrasl_total]))
             process_otrasl_total_row(active_group, years, agg_dict, 's011', result, otrasl_total)
            #process_subgroups(active_group, years, agg_dict, 's011', result, otrasl_total)
 
@@ -249,6 +233,7 @@ def process_regional_data(df: pd.DataFrame, years: List[str], others_columns: Li
                 result.append(create_data_row(display_name, subgroup_sum, years, style))
 
                 # внутри них → s011
+                print('3331115551_otrasl = ', len(subgroup_data[subgroup_data['otrasl'] == otrasl_total]))
                 process_otrasl_total_row(subgroup_data, years, agg_dict, 's011', result, otrasl_total)
                 #process_subgroups(subgroup_data, years, agg_dict, 's011', result, otrasl_total)
 
@@ -283,10 +268,9 @@ def sort_subgroup(df: pd.DataFrame) -> pd.DataFrame:
     )
 def process_ver_real_level2_groups(df: pd.DataFrame, years: List[str], others_columns: List[str],
                                    agg_dict: Dict[str, str], styles: Dict, result: List, otrasl_total: str) -> None:
-
+    """Обработка групп по ver_real_level2 с выводом сумм"""
     for level_name, group in df.groupby('ver_real_level2'):
-
-        # Заголовок группы
+        # Приводим названия для стиля s04
         display_name = level_name
         if level_name == "действующие потребители":
             display_name = "Действующие потребители"
@@ -294,58 +278,28 @@ def process_ver_real_level2_groups(df: pd.DataFrame, years: List[str], others_co
             display_name = "Ожидаемые потребители"
         elif level_name == "потенциальные потребители":
             display_name = "Потенциальные потребители"
+        # Вычисляем суммы для группы
+        group_sum = group.groupby(['ver_real_level2']).agg(agg_dict).reset_index().iloc[0]
 
-        group_sum = (
-            group
-            .groupby(['ver_real_level2'])
-            .agg(agg_dict)
-            .reset_index()
-            .iloc[0]
-        )
-
+        # Добавляем заголовок с суммами с стилем s04 для ver_real_level2
         result.append({
             'contragent': display_name,
             **{col: '' for col in others_columns},
-            **{f'y{y}': safe_float(getattr(group_sum, f'y{y}', 0)) for y in years},
-            'prirost': safe_float(getattr(group_sum, 'prirost', 0)),
-            'style': 's04'
+            **{f'y{y}': safe_float(safe_getattr(group_sum, f'y{y}', 0)) for y in years},
+            'prirost': safe_float(safe_getattr(group_sum, 'prirost', 0)),
+            'style': 's04'  # Стиль s04 для ver_real_level2
         })
 
-        # ===== РАЗДЕЛЕНИЕ =====
-        normal = group[~group['_all_cleared']]
-        cleared = group[group['_all_cleared']]
+        # Добавляем детализированные строки
+        subgroup = (
+            group.groupby(['contragent'] + others_columns)
+            .agg(agg_dict)
+            .reset_index()
+        )
+        subgroup = sort_subgroup(subgroup)
 
-        # ===== 1. ОБЫЧНЫЕ СТРОКИ (СВЕРХУ) =====
-        if not normal.empty:
-            subgroup = (
-                normal
-                .groupby(['contragent'] + others_columns)
-                .agg(agg_dict)
-                .reset_index()
-            )
-
-            subgroup = sort_subgroup(subgroup)
-
-            for row in subgroup.itertuples():
-                result.append(create_detailed_row(row, years, others_columns))
-
-        # ===== 2. ЗАЧИЩЕННЫЕ (ВСЕГДА ВНИЗУ) =====
-        if not cleared.empty:
-            collapsed = (
-                cleared
-                .groupby(['contragent'], dropna=False)
-                .agg(agg_dict)
-                .reset_index()
-            )
-
-            for row in collapsed.itertuples():
-                result.append({
-                    'contragent': row.contragent,
-                    **{col: '' for col in others_columns},  # ver_real = ''
-                    **{f'y{y}': safe_float(getattr(row, f'y{y}')) for y in years},
-                    'prirost': safe_float(row.prirost),
-                    'style': 's041'
-                })
+        for row in subgroup.itertuples():
+            result.append(create_detailed_row(row, years, others_columns))
 
 def safe_getattr(obj, attr, default=0):
     """Безопасное получение атрибута объекта"""
@@ -622,7 +576,6 @@ def get_excel(result, yearfrom, yearto, fo_params=None):
     name = 'output.xlsx'
     # basic_path = os.path.expanduser("~/work/backend/progSpros_back/")
     basic_path = '/opt/foresight/progSpros_back/'
-    #basic_path = 'C:\\Users\\user\\PycharmProjects\\backend\\progSpros_back\\'
 
     # Сохраняем DataFrame в Excel
     y = json.dumps(result, cls=CustomJSONEncoder)
