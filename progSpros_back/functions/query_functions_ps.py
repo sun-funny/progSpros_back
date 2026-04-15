@@ -992,7 +992,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: 
             PSDataEnd.tab_region_d314_ids == PSDataStart.tab_region_d314_ids,
             PSDataEnd.tab_ver_real_pr_d314_ids == PSDataStart.tab_ver_real_pr_d314_ids,
             PSDataEnd.tab_contragent_d314_ids == PSDataStart.tab_contragent_d314_ids,
-            PSDataEnd.year == end_year
+            # PSDataEnd.year == end_year
         ),
         isouter=True
     ).join(
@@ -1016,7 +1016,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: 
             )
         ).label('rank')
     )
-    # print(ranked_contragents.all())
+    print(db.execute(ranked_contragents).mappings().all())
     ranked_contragents = ranked_contragents.subquery('ranked_contragents')
 
     top3_query_filters = [
@@ -1057,7 +1057,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: 
             PSDataStart.tab_region_d314_ids == ranked_contragents.c.region_id,
             PSDataStart.tab_ver_real_pr_d314_ids == ranked_contragents.c.version_id,
             PSDataStart.tab_contragent_d314_ids == ranked_contragents.c.contragent_id,
-            PSDataStart.year == start_year
+            # PSDataStart.year == start_year
         )
     ).outerjoin(
         PSDataEnd, and_(
@@ -1078,16 +1078,8 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: 
         TU, TU.id == PSDataStart.tab_tu_visual_d314_ids
     ).outerjoin(
         PG, PG.id == PSDataStart.tab_pg_visual_d314_ids
-    # ).outerjoin(
-    #     StGaz, StGaz.id == PSDataStart.tab_start_gaz_d314_ids
-    # ).join(
-    #     Otrasl, Otrasl.id == PSDataStart.tab_otrasl_economy_d314_ids
     ).outerjoin(
         Dogovor, Dogovor.id == PSDataStart.tab_dogovor_visual_d314_ids
-    # ).outerjoin(
-    #     Infr, Infr.id == PSDataStart.tab_infr_d314_ids
-    # ).outerjoin(
-    #     StPotr, StPotr.id == PSDataStart.tab_status_potreb_d314_ids
     ).filter(
         *top3_query_filters
     ).group_by(

@@ -291,8 +291,8 @@ def add_region_detalization(info: Dict, data: List[Dict]):
         # if vers_name not in info['regions_info'][fo_name][region_name]:
         #     info['regions_info'][fo_name][region_name][vers_name] = {}
         if 'contragents' not in info['regions_info'][fo_name][region_name]:
-            info['regions_info'][fo_name][region_name]['contragents'] = defaultdict()
-        info['regions_info'][fo_name][region_name]['contragents'][vers_name] = []
+            info['regions_info'][fo_name][region_name]['contragents'] = defaultdict(list)
+        # info['regions_info'][fo_name][region_name]['contragents'][vers_name] = []
         region_vers_info = info['regions_info'][fo_name][region_name]['contragents'][vers_name]
         # if 'contragents' not in region_vers_info:
         #     # region_vers_info = dict(region_vers_info)
