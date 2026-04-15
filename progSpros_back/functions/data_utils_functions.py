@@ -13,7 +13,7 @@ ID_PREFIX_MAPPER = {
 def _is_none_or_zero(item):
     return (item is None or item == 0)
 def format_float(num: float) -> str:
-    num_str = f"{num:,.2f}"
+    num_str = f"{(num/ 1000000):,.2f}" # в миллионах
     num_str = num_str.replace(',', ' ').replace('.', ',')
 
     return num_str
