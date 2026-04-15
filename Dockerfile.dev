@@ -1,4 +1,4 @@
-FROM python:3.8-slim
+FROM python:3.8
 RUN apt update
 RUN apt-get install build-essential python-dev-is-python3 -y
 # RUN mkdir -p /progSpros_back

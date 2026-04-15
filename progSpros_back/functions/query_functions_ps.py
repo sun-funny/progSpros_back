@@ -1,9 +1,13 @@
 ﻿from datetime import datetime
-from typing import Dict, List, Optional, Tuple
-from sqlalchemy import func, and_, case, CTE, literal, select, Case, text, Text
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from sqlalchemy import desc, func, and_, case, CTE, literal, or_, select, Case, text, Text
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql.expression import cast
-from sqlalchemy.orm import scoped_session, Query
+from sqlalchemy.orm import aliased, scoped_session, Query
 from progSpros_back.functions.file_upload_functions_ps import CaseDescriptor, ColumnDescriptor
+from progSpros_back.model.mappings_ps import version_leveled_mappings
+from progSpros_back.model.db_models_ps import PG, PSDATA, TU, Contragent, Dogovor, FedState, Otrasl, Regions, VersProgn
 # from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr, StGaz
 
 '''# Округа и регионы
@@ -859,28 +863,251 @@ def check_optional_cols(db: scoped_session, base_query: Query, optional_cols: Di
     result = db.execute(text(query)).fetchone()
     # print('result', result)
     return [col for idx, col in enumerate(optional_cols.keys()) if result[idx]]
-    # checks = []
-    # for col in optional_cols.keys():
-    #     checks.append(f"COUNT({col}) > 0 AS {col}_has_data")
-    # check_query = f"""
-    #     WITH subquery AS (
-    #         {base_query.subquery()}
-    #     )
-    #     SELECT 
-    #         {', '.join(checks)}
-    #     FROM subquery
-    # """
-    # result = db.execute(text(check_query)).fetchone()
-    # non_empty_cols = []
-    # for col in optional_cols.keys():
-    #     if getattr(result, f'{col}_has_data'):
-    #         non_empty_cols.append(col)
+
+
+######### Пояснительная записка
+def map_column(column, mapper: Dict):
+    when_clauses = []
+    for key, value in mapper.items():
+        when_clauses.append((cast(column, Text) == str(key), literal(value)))
+    return case(*when_clauses, else_=cast(column, Text))
+def ensure_list(items) -> List[Any]:
+    if isinstance(items, str):
+        items_list = [items]
+    elif isinstance(items, Iterable) and not isinstance(items, str):
+        items_list = list(items)
+    else:
+        items_list = [items]
+    return items_list
+def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: List[str], industry: str) -> Tuple[Query, Query]:
+    VERSION_MAPPER = version_leveled_mappings['ver_real_level1']
+
+    def get_base_queries() -> Tuple[Tuple[DeclarativeBase, List[bool]]]:
+        PSDataStart = aliased(PSDATA)
+        PSDataEnd = aliased(PSDATA)
+        
+        base_filters_start = [
+            or_(PSDataStart.year == start_year, PSDataEnd.year == end_year),
+            # or_(regions is None, Regions.name.in_(ensure_list(regions))),
+            Otrasl.name == industry,
+        ]
+        
+        base_filters_end = [
+            PSDataEnd.year == end_year,
+            # or_(regions is None, Regions.name.in_(ensure_list(regions))),
+            Otrasl.name == industry
+        ]
+
+        if regions and len(regions) > 0:
+            regions_list = ensure_list(regions)
+            base_filters_start.append(Regions.name.in_(regions_list))
+            base_filters_end.append(Regions.name.in_(regions_list))
+
+        return ((PSDataStart, base_filters_start), (PSDataEnd, base_filters_end))
+
+    (PSDataStart, base_filters_start), (PSDataEnd, base_filters_end) = get_base_queries()
+    mapped_version_expr = map_column(VersProgn.full_name, VERSION_MAPPER)
+    mapped_version_col = mapped_version_expr.label('version_name')
+    # mapped_version_col = map_column(VersProgn.full_name, VERSION_MAPPER).label('version_name')
+
+    # base_filters_start = [
+    #         PSDataStart.year == start_year,
+    #         # or_(regions is None, Regions.name.in_(ensure_list(regions))),
+    #         Otrasl.name == industry
+    #     ]
+
+    main_query = db.query(
+        Regions.name.label('region_name'),
+        FedState.short_name.label('fo_name'),
+        # VersProgn.id.label('version_id'),
+        mapped_version_col,#(map_column(VersProgn.full_name, VERSION_MAPPER)).label('version_name'),
+        # VersProgn.short_name.label('version_short_name'),
+        func.coalesce(func.sum(PSDataStart.summ), 0).label('summ_start'),
+        func.coalesce(func.sum(PSDataEnd.summ), 0).label('summ_end'),
+    ).join(
+        Regions, Regions.id == PSDataStart.tab_region_d314_ids
+    ).join(
+        FedState, FedState.id == Regions.tab_fo_d314_ids
+    ).join(
+        VersProgn, VersProgn.id == PSDataStart.tab_ver_real_pr_d314_ids
+    ).join(
+        Otrasl, Otrasl.id == PSDataStart.tab_otrasl_economy_d314_ids
+    ).join(
+        PSDataEnd, and_(
+            PSDataEnd.tab_region_d314_ids == PSDataStart.tab_region_d314_ids,
+            PSDataStart.tab_contragent_d314_ids == PSDataEnd.tab_contragent_d314_ids,
+            # PSDataEnd.tab_ver_real_pr_d314_ids == PSDataStart.tab_ver_real_pr_d314_ids,
+            PSDataEnd.tab_otrasl_economy_d314_ids == PSDataStart.tab_otrasl_economy_d314_ids,
+            # PSDataEnd.tab_fo_d314_ids == PSDataStart.tab_fo_d314_ids,
+            # PSDataEnd.year == end_year
+        ),
+        isouter=True
+    # ).join(
+    #     Regions, Regions.id == PSDataEnd.tab_region_d314_ids
+    ).filter(
+        *base_filters_start
+    ).group_by(
+        VersProgn.id,
+        Regions.id, Regions.name, #Regions.short_name,
+        FedState.ord, FedState.short_name,# FedState.short_name,
+        mapped_version_expr,#(map_column(VersProgn.full_name, VERSION_MAPPER)).label('version_name'),
+    ).order_by(
+        FedState.ord, Regions.name, VersProgn.id
+    )
+
+    # ТОП ПОТРЕБИТЕЛЕЙ
+    # (PSDataStartContr, filters_start), (PSDataEndContr, filters_end) = get_base_queries()
+    base_filters_start = [
+        or_(PSDataStart.year == start_year, PSDataEnd.year == end_year),
+        Otrasl.name == industry
+    ]
     
-    # return non_empty_cols
+    if regions and len(regions) > 0:
+        regions_list = ensure_list(regions)
+        base_filters_start.append(Regions.name.in_(regions_list))
+    
+    contragent_total = db.query(
+        PSDataStart.tab_region_d314_ids.label('region_id'),
+        PSDataStart.tab_ver_real_pr_d314_ids.label('version_id'),
+        PSDataStart.tab_otrasl_economy_d314_ids.label('industry_id'),
+        mapped_version_col,#map_column(VersProgn.full_name, VERSION_MAPPER).label('version_name'),
+        PSDataStart.tab_contragent_d314_ids.label('contragent_id'),
+        func.sum(PSDataStart.summ).label('total_summ_start'),
+        func.sum(PSDataEnd.summ).label('total_summ_end')
+    ).filter(
+        *base_filters_start
+    ).group_by(
+        PSDataStart.tab_otrasl_economy_d314_ids,
+        PSDataStart.tab_region_d314_ids,
+        mapped_version_expr,#map_column(VersProgn.full_name, VERSION_MAPPER).label('version_name'),
+        PSDataStart.tab_ver_real_pr_d314_ids,
+        PSDataStart.tab_contragent_d314_ids,
+        map_column(VersProgn.full_name, VERSION_MAPPER)
+    ).join(
+        Regions, Regions.id == PSDataStart.tab_region_d314_ids
+    ).join(
+        Otrasl, Otrasl.id == PSDataStart.tab_otrasl_economy_d314_ids
+    ).join(
+        PSDataEnd, and_(
+            PSDataEnd.tab_region_d314_ids == PSDataStart.tab_region_d314_ids,
+            PSDataEnd.tab_ver_real_pr_d314_ids == PSDataStart.tab_ver_real_pr_d314_ids,
+            PSDataEnd.tab_contragent_d314_ids == PSDataStart.tab_contragent_d314_ids,
+            PSDataEnd.year == end_year
+        ),
+        isouter=True
+    ).join(
+        VersProgn, VersProgn.id == PSDataStart.tab_ver_real_pr_d314_ids
+    )
+    # print(contragent_total.all())
+    contragent_total = contragent_total.subquery()
+    ranked_contragents = db.query(
+        contragent_total.c.region_id,
+        contragent_total.c.version_id,
+        contragent_total.c.version_name,
+        contragent_total.c.contragent_id,
+        contragent_total.c.industry_id,
+        # (func.coalesce(contragent_total.c.total_summ_start, 0) + 
+        #  func.coalesce(contragent_total.c.total_summ_end, 0)).label('total_summ'),
+        func.row_number().over(
+            partition_by=[contragent_total.c.region_id, contragent_total.c.version_name, contragent_total.c.industry_id],
+            order_by=desc(
+                # func.coalesce(contragent_total.c.total_summ_start, 0) + 
+                func.coalesce(contragent_total.c.total_summ_end, 0)
+            )
+        ).label('rank')
+    )
+    # print(ranked_contragents.all())
+    ranked_contragents = ranked_contragents.subquery('ranked_contragents')
 
-# # Запрос для данных сравнительной таблицы 1
-# def get_table_1_query(main_cols: Dict[str, ColumnDescriptor], optional_cols: Dict[str, ColumnDescriptor], date1: datetime, date2: datetime) -> Query:
+    top3_query_filters = [
+        ranked_contragents.c.rank <= 3,
+        Otrasl.name == industry
+    ]
+    
+    if regions and len(regions) > 0:
+        regions_list = ensure_list(regions)
+        top3_query_filters.append(Regions.name.in_(regions_list))
+    top3_query = db.query(
+        # ranked_contragents.c.region_id,
+        FedState.short_name.label('fo_name'),
+        Regions.name.label('region_name'),
+        ranked_contragents.c.version_id,
+        ranked_contragents.c.version_name,
+        # ranked_contragents.c.contragent_id,
+        # ranked_contragents.c.rank,
+        Contragent.name.label('contragent_name'),
+        func.sum(func.coalesce(PSDataStart.summ, 0)).label('summ_start'),
+        func.sum(func.coalesce(PSDataEnd.summ, 0)).label('summ_end'),
 
+        func.string_agg(func.distinct(TU.name), ', ').label('tu_list'),
+        # func.count(func.distinct(PSDataStart.tab_tu_visual_d314_ids)).label('tu_count'),
+        func.string_agg(func.distinct(PG.name), ', ').label('pg_list'),
+        # func.count(func.distinct(PSDataStart.tab_pg_visual_d314_ids)).label('pg_count'),
+        
+        # func.string_agg(func.distinct(StGaz.name), ', ').label('start_gaz_names'),
+        func.string_agg(func.distinct(Dogovor.name), ', ').label('dogovor_list'),
+        # func.string_agg(func.distinct(Infr.name), ', ').label('infr_names'),
+        # func.string_agg(func.distinct(StPotr.name), ', ').label('status_potreb_names')
+    ).select_from(
+        ranked_contragents
+    ).join(
+        Contragent, Contragent.id == ranked_contragents.c.contragent_id
+    ).outerjoin(
+        PSDataStart, and_(
+            PSDataStart.tab_region_d314_ids == ranked_contragents.c.region_id,
+            PSDataStart.tab_ver_real_pr_d314_ids == ranked_contragents.c.version_id,
+            PSDataStart.tab_contragent_d314_ids == ranked_contragents.c.contragent_id,
+            PSDataStart.year == start_year
+        )
+    ).outerjoin(
+        PSDataEnd, and_(
+            PSDataEnd.tab_region_d314_ids == ranked_contragents.c.region_id,
+            PSDataEnd.tab_ver_real_pr_d314_ids == ranked_contragents.c.version_id,
+            PSDataEnd.tab_contragent_d314_ids == ranked_contragents.c.contragent_id,
+            # PSDataEnd.year == end_year
+        )
+    ).join(
+        Otrasl, ranked_contragents.c.industry_id == Otrasl.id
+    ).join(
+        Regions, ranked_contragents.c.region_id == Regions.id
+    # ).outerjoin(
+    #     VersProgn, VersProgn.id == PSDataStart.tab_ver_real_pr_d314_ids
+    ).join(
+        FedState, FedState.id == Regions.tab_fo_d314_ids,
+    ).outerjoin(
+        TU, TU.id == PSDataStart.tab_tu_visual_d314_ids
+    ).outerjoin(
+        PG, PG.id == PSDataStart.tab_pg_visual_d314_ids
+    # ).outerjoin(
+    #     StGaz, StGaz.id == PSDataStart.tab_start_gaz_d314_ids
+    # ).join(
+    #     Otrasl, Otrasl.id == PSDataStart.tab_otrasl_economy_d314_ids
+    ).outerjoin(
+        Dogovor, Dogovor.id == PSDataStart.tab_dogovor_visual_d314_ids
+    # ).outerjoin(
+    #     Infr, Infr.id == PSDataStart.tab_infr_d314_ids
+    # ).outerjoin(
+    #     StPotr, StPotr.id == PSDataStart.tab_status_potreb_d314_ids
+    ).filter(
+        *top3_query_filters
+    ).group_by(
+        FedState.short_name,
+        Regions.name,
+        ranked_contragents.c.region_id,
+        ranked_contragents.c.version_name,
+        ranked_contragents.c.version_id,
+        ranked_contragents.c.industry_id,
+        # ranked_contragents.c.contragent_id,
+        ranked_contragents.c.rank,
+        Contragent.name,
+        # Contragent.inn
+    ).order_by(
+        ranked_contragents.c.region_id,
+        ranked_contragents.c.version_name,
+        ranked_contragents.c.rank
+    )
+
+    return (main_query, top3_query)
 
 
 # # Запрос для справочника регионов по ФО

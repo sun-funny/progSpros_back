@@ -1,14 +1,18 @@
-﻿from urllib.parse import parse_qs
+﻿from collections import defaultdict
+from itertools import zip_longest
+from typing import Dict, List
+from urllib.parse import parse_qs
 from decimal import Decimal
 from datetime import datetime
-from sqlalchemy import inspect, create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import Tuple, inspect, create_engine
+# from sqlalchemy.orm import scoped_session, sessionmaker
 
 from flask import g
 
 from progSpros_back.functions.query_functions_ps import mapping_query, mapping_vers
 from progSpros_back.database_ps import set_db_connection
 from progSpros_back.config_ps import Config
+from progSpros_back.model.mappings_ps import version_leveled_mappings, tick_mapping
 
 def create_filter_params(request):
     """
@@ -203,10 +207,6 @@ def sum_prirost(data, sum_param):
 
     return sum_param
 
-# def set_db_connection():
-    
-#     return g.session
-
 def mapping(map):
     db = set_db_connection()
     base_query = db.query(map)
@@ -218,3 +218,87 @@ def mapping(map):
             result[row.id] = row.name
     return result
 
+
+def tuple_sum(a: Tuple, b: Tuple) -> Tuple:
+    return tuple(x + y for x, y in zip_longest(a, b, fillvalue=0))
+
+def combine_note_data_sums(data: List[Dict]) -> Dict:
+    # FIRST_LVL_MAPPER = version_leveled_mappings['ver_real_level1']
+    EXPECT_MAPPER = version_leveled_mappings['expect']
+    MAXIMUM_NAME = list(version_leveled_mappings['maximum'].values())[0]
+    # MAXIMUM_MAPPER = version_leveled_mappings['maximum']
+    result = {
+        'summary': defaultdict(lambda: (0, 0)),
+        'regions_info': defaultdict(lambda: defaultdict(lambda: {
+            'summary': defaultdict(lambda: (0, 0))
+            # 'contragents': []
+        }))
+    }
+    summary = result['summary']
+    regions_info = result['regions_info']
+    
+    group_names = set(version_leveled_mappings['ver_real_level1'].values())
+    group_names.add(EXPECT_MAPPER.values())
+    group_names.add(MAXIMUM_NAME)
+    def init_sums(d: Dict) -> Dict:
+        for group_name in group_names:
+            d[group_name] = (0, 0) # start_year, end_year
+
+    # fos = defaultdict(init_sums(dict()))
+
+    init_sums(summary)
+    for row in data:
+        fo_name = row['fo_name']
+        region_name = row['region_name']
+        vers_name = row['version_name']
+        summs = (row['summ_start'], row['summ_end'])
+
+        regions_info[fo_name]
+        region_data = regions_info[fo_name][region_name]
+        if 'summary' not in region_data:
+            region_data['summary'] = defaultdict(lambda: (0, 0))
+            init_sums(region_data['summary'])
+        region_sum = region_data['summary']
+        summary[vers_name] = tuple_sum(summary[vers_name], summs)
+        region_sum[vers_name] = tuple_sum(region_sum[vers_name], summs)
+        if (vers_name:=EXPECT_MAPPER.get(vers_name, False)):
+            summary[vers_name] = tuple_sum(summary[vers_name], summs)
+            region_sum[vers_name] = tuple_sum(region_sum[vers_name], summs)
+        summary[MAXIMUM_NAME] = tuple_sum(summary[MAXIMUM_NAME], summs)
+        region_sum[MAXIMUM_NAME] = tuple_sum(region_sum[MAXIMUM_NAME], summs)
+    
+    return result
+
+def add_region_detalization(info: Dict, data: List[Dict]):
+    for row in data:
+        fo_name = row.get('fo_name')
+        region_name = row.get('region_name')
+        vers_name = row.get('version_name')
+        summs = (row.get('summ_start', 0), row.get('summ_end', 0))
+        if not all([fo_name, region_name, vers_name]):
+            continue
+
+        def get_tick(value: str, mapper: Dict) -> bool:
+            if value is None:
+                return False
+            if len(value) > 0:
+                value = value.split(',')[0]
+            return mapper.get(value, value)
+        
+        tu = get_tick(row.get('tu_list'), tick_mapping)
+        pg = get_tick(row.get('pg_list'), tick_mapping)
+        contract = get_tick(row.get('dogovor_list'), tick_mapping)
+        # if vers_name not in info['regions_info'][fo_name][region_name]:
+        #     info['regions_info'][fo_name][region_name][vers_name] = {}
+        if 'contragents' not in info['regions_info'][fo_name][region_name]:
+            info['regions_info'][fo_name][region_name]['contragents'] = defaultdict()
+        info['regions_info'][fo_name][region_name]['contragents'][vers_name] = []
+        region_vers_info = info['regions_info'][fo_name][region_name]['contragents'][vers_name]
+        # if 'contragents' not in region_vers_info:
+        #     # region_vers_info = dict(region_vers_info)
+        #     region_vers_info['contragents'] = []
+
+        contragent_info = {'name': row.get('contragent_name'),
+                           'summs': summs,
+                           'tu': tu, 'pg': pg, 'contract': contract}
+        region_vers_info.append(contragent_info)

@@ -1,9 +1,10 @@
 from copy import copy
 from itertools import chain
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from dataclasses import dataclass
-from sqlalchemy import Column, RowMapping, Case
+from docx import Document
+from sqlalchemy import Column, Case
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell import Cell
@@ -13,7 +14,6 @@ from openpyxl.utils import get_column_letter
 import re
 from flask import current_app
 from io import BytesIO
-import zipfile
 
 @dataclass
 class CaseDescriptor:
@@ -33,7 +33,6 @@ class ColumnDescriptor:
 
 @dataclass
 class TableDescriptor:
-    # template_name: str
     list_name: str # новое название
     data: List
     location: Optional[str] = 'A1' # координата верхнего левого угла
@@ -46,12 +45,9 @@ class TableDescriptor:
 
 @dataclass
 class TableBlockDescriptor:
-    template_ws : Worksheet# = 'main'
+    template_ws : Worksheet
     col_num : Optional[int] = None
     value : Optional[str] = None
-    # heights : List = []
-    # styles : List = []
-    # numfmts : List = []
 
 @dataclass(frozen=True)
 class HashableDict:
@@ -68,22 +64,16 @@ class HashableDict:
 def prepare_all_data(titles: Dict[str, ColumnDescriptor], rows: List[Dict]):
     parted_rows = {}
     years_range = (100500, 0)
-    # row_mapper = {k: col.mapping for k, col in titles.items() if col.mapping is not None}
-
+    
+    
     titles['start_year'] = ColumnDescriptor(excel_title='Начало отбора')
 
     def get_row_key_dict(row: Dict) -> Dict:
         key_dict = HashableDict.from_dict({k: v for k, v in row.items() if k not in ['sum', 'year']})
         return key_dict
-    # def transform_row(row: RowMapping) -> Dict:
-    #     result_row = dict(row)
-    #     for key, mapping in row_mapper.items():
-    #         if key in row:
-    #             result_row[key] = mapping.get(row[key], row[key])
-    #     return result_row
     
     for row in rows:
-        # row = transform_row(row)
+        
         year = row.get('year')
         if year:
             titles[year] = ColumnDescriptor(excel_title=str(year))
@@ -116,18 +106,21 @@ def prepare_all_data(titles: Dict[str, ColumnDescriptor], rows: List[Dict]):
 
         for year, value in end.items():
             result_row[year] = float(sum(filter((lambda x : x is not None), value)))
-        # result_row.update(end)
+        
         result.append(result_row)
     
     return (result, years_range)
 
-class ExcelBuilder:
-    def _get_template_path(self, template_name: str) -> str:
+class UtilsMixin:
+    @classmethod
+    def _get_template_path(cls, template_name: str) -> str:
         """
         Шаблон лежит в app/templates.
         current_app.root_path указывает на папку app.
         """
         return os.path.join(current_app.root_path, "templates", template_name)
+
+class ExcelBuilder(UtilsMixin):
 
     def _build_templates_mapper(self):
         self.templates_mapper = {}
@@ -140,10 +133,6 @@ class ExcelBuilder:
             self.templates_mapper[cur_cell.value] = self.templates_ws.cell(column=cur_cell.column, row=1).column
             cur_cell = cur_cell.offset(column=1)
     
-    # def _get_sheets(self):
-    #     self.main_ws = self._wb[self.main_name]
-    #     self.optional_ws = self._wb[f'{self.table_desc.list_name}_optional'] if f'{self.table_desc.list_name}_optional' in self._wb else None
-    #     self.templates_ws = self._wb[f'{self.table_desc.list_name}_template_cols'] if f'{self.table_desc.list_name}_template_cols' in self._wb else None
     
     def _build_optionals_mapper(self):
         self.optional_mapper = {}
@@ -303,8 +292,7 @@ class ExcelBuilder:
         max_col = self.main_ws.max_column
         self.start_row, self.start_column = coordinate_to_tuple(self.table_desc.location) 
         self.start_row += self.table_desc.groupings_headers_height
-        # print(self.table_desc.main_cols.items())
-        # self.cols_mapper = {col.excel_title: key for key, col in (list(self.table_desc.main_cols.items()) + list(self.table_desc.optional_cols.items() if self.table_desc.optional_cols is not None else []))}
+        
         self.cols_mapper = {
             col.excel_title: key 
             for key, col in chain(
@@ -313,23 +301,21 @@ class ExcelBuilder:
             )
         }
         template_headers_mapper = {}
-        # value_mapper = {}
-        # print(self.cols_mapper)
+        
         for col in range(self.start_column, max_col + 1):
             if self.main_ws.cell(self.start_row, col).value is None:
                 continue
             col_id = self.cols_mapper.get(str(self.main_ws.cell(self.start_row, col).value).replace('\n', ' '))
-            # col_id = col_id.replace('\n', ' ')
+            
             template_headers_mapper[col_id] = col 
-            # if value_mapping is not None:
-            #     value_mapper[col_id] = value_mapping 
+            
             if col_id in self.highlighted_cols:
                 cols_to_highlight.add(col)
         self.start_row += 1
         template_cells = [self.main_ws.cell(self.start_row, c) for c in range(1, max_col + 1)]
         template_styles = [c._style for c in template_cells]
         template_numfmts = [c.number_format for c in template_cells]
-        # print(template_headers_mapper)
+        
         rows_touched = set()
         del_cells = []
         for (r, col) in self.main_ws._cells.keys():
@@ -362,7 +348,7 @@ class ExcelBuilder:
         def write_row_values(row_idx: int, row: Dict[str, Any]) -> None:
             for cell_id, cell_value in row.items():
                 col_idx = template_headers_mapper.get(cell_id)
-                # cell_value = value_mapper.get(cell_id, {cell_value:cell_value}).get(cell_value, cell_value)
+                
                 if not col_idx:
                     continue
                 try:
@@ -381,8 +367,7 @@ class ExcelBuilder:
         template_path = self._get_template_path(template_name)
         if not os.path.exists(template_path):
             raise ValueError(f"Не найден шаблон выгрузки: {template_path}")
-        # if table_desc.data is None or len(table_desc.data) < 1:
-        #     raise ValueError(f"Не найден шаблон выгрузки: {template_path}")
+        
         self._wb = load_workbook(template_path)
         
         for table_desc in table_descs:
@@ -418,82 +403,118 @@ class ExcelBuilder:
         return bio.getvalue()
 
 
+class _KeyReplacer:
+    def __init__(self, p, key, value) -> None:
+        self.p = p
+        self.key = key
+        self.value = value
+        self.run_text = ""
+        self.runs_indexes: List = []
+        self.run_char_indexes: List = []
+        self.runs_to_change: Dict = {}
+
+    def _build_indexes_table(self) -> None:
+        run_index = 0
+        for run in self.p.runs:
+            text_len = len(run.text)
+            self.run_text += run.text
+            self.runs_indexes += [run_index] * text_len
+            self.run_char_indexes += [char_index for char_index in range(text_len)]
+            run_index += 1
+
+    def replace(self) -> None:
+        self._build_indexes_table()
+        index_to_replace = self.run_text.find(self.key)
+
+        for i in range(len(self.key)):
+            index = index_to_replace + i
+            run_index = self.runs_indexes[index]
+            run = self.p.runs[run_index]
+            run_char_index = self.run_char_indexes[index]
+
+            if not self.runs_to_change.get(run_index):
+                self.runs_to_change[run_index] = [char for char in run.text]
+
+            run_to_change: Dict = self.runs_to_change.get(run_index)
+            if index == index_to_replace:
+                run_to_change[run_char_index] = self.value
+            else:
+                run_to_change[run_char_index] = ""
+
+        # make the real replace
+        for index, text in self.runs_to_change.items():
+            run = self.p.runs[index]
+            run.text = "".join(text)
 
 
-'''
+class DocxBuilder(UtilsMixin):
+    # PLACEHOLDER_PATTERN = r'%([^%]+?)%'
+    PLACEHOLDER = lambda self, key: f'%{key}%'
 
-def build_export_xlsx(template_name: str, main_headers: Dict[str, ColumnDescriptor], data):
-    template_path = _get_template_path(template_name)
-    if not os.path.exists(template_path):
-        raise ValueError(f"Не найден шаблон выгрузки: {template_path}")
+    def fill_docx_template(self, template_name: str, **kwargs) -> Document:
+        self.doc = Document(self._get_template_path(template_name))
+        
+        for key, value in kwargs.items():
+            key = self.PLACEHOLDER(key)
+            for p in self._get_all_paragraphs():
+                self._replace_key(p, key, str(value))
+        
+        return self.doc
+        
+
+    def _get_all_paragraphs(self) -> List[Any]:
+        paragraphs = []
+        paragraphs.extend(self._get_paragraphs_from(self.doc))
+
+        for section in self.doc.sections:
+            paragraphs.extend(self._get_paragraphs_from(section.header))
+            paragraphs.extend(self._get_paragraphs_from(section.footer))
+
+        return paragraphs
     
-    wb = openpyxl.load_workbook(template_path)
-    ws = wb.active
+    @staticmethod
+    def _get_paragraphs_from(item: Union[Any]) -> Generator:
+        yield from item.paragraphs
 
-    max_col = ws.max_column
-
-    cols_mapper = {col.excel_title: key for key, col in main_headers.items()}
-    template_headers_mapper = {}
-    for c in range(1, max_col + 1):
-        template_headers_mapper[cols_mapper.get(str(ws.cell(1, c).value).replace('\n', ' '))] = c 
+        for table in item.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        yield paragraph
     
+    @classmethod
+    def _replace_key(cls, paragraph, key: str, value: str):
+        if key not in paragraph.text:
+            return
+        
+        replace_success = False
+        for run in paragraph.runs:
+            if key in run.text:
+                run.text = run.text.replace(key, value)
+                replace_success = True
+        
+        if not replace_success:
+            cls._replace_broken_key(paragraph, key, value)
     
-    template_cells = [ws.cell(2, c) for c in range(1, max_col + 1)]
-    template_styles = [c._style for c in template_cells]
-    template_numfmts = [c.number_format for c in template_cells]
-    template_row_height = ws.row_dimensions[2].height
+    @classmethod
+    def _replace_broken_key(cls, paragraph, key: str, value: str):
+        while key in paragraph.text:
+            replacer = _KeyReplacer(paragraph, key=key, value=value)
+            replacer.replace()
 
-
-    rows_touched = set()
-    del_cells = []
-    for (r, c) in ws._cells.keys():
-        if r >= 3 and 1 <= c <= max_col:
-            del_cells.append(ws._cells[(r, c)])
-            rows_touched.add(r)
-
-    for cell in del_cells:
-        del cell
-
-    for r in rows_touched:
-        if r in ws.row_dimensions:
-            del ws.row_dimensions[r]
-
-    for c in range(1, max_col + 1):
-        ws.cell(2, c).value = None
-
-    if not data or len(data) == 0:
-        bio = BytesIO()
-        wb.save(bio)
-        return bio.getvalue()
-
-    def apply_template_style(row_idx: int) -> None:
-        if template_row_height is not None:
-            ws.row_dimensions[row_idx].height = template_row_height
-        for col_idx in range(1, max_col + 1):
-            cell = ws.cell(row_idx, col_idx)
-            cell._style = template_styles[col_idx - 1]
-            cell.number_format = template_numfmts[col_idx - 1]
-
-    def write_row_values(row_idx: int, row: Dict[str, Any]) -> None:
-        for cell_id, cell_value in row.items():
-            col_idx = template_headers_mapper.get(cell_id)
-
-            if not col_idx:
-                continue
-            try:
-                ws.cell(row=row_idx, column=col_idx).value = cell_value
-            except Exception as e:
-                print(cell_id, cell_value)
-                raise e
-
-    for i, row in enumerate(data):
-        row_idx = 2 + i
-        if row_idx != 2:
-            apply_template_style(row_idx)
-        write_row_values(row_idx, row)
-
-    bio = BytesIO()
-    wb.save(bio)
-    return bio.getvalue()
-
-'''
+    @staticmethod
+    def join_docs(*docs: Document) -> Document:
+        base_doc : Document = docs[0]
+        for doc in docs[1:]:
+            # base_doc.add_page_break()
+            for element in doc.element.body:
+                base_doc.element.body.append(element)
+        
+        return base_doc
+    
+    @staticmethod
+    def save_file(doc: Document) -> BytesIO:
+        file_stream = BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+        return file_stream

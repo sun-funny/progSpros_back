@@ -75,7 +75,7 @@ class FedState(Base):
     __table_args__ = {'schema': 'public'}
     id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True)
-    ord = Column(Integer)
+    ord = Column(Integer, name='ORD')
     short_name = Column(Text)
 
 class Regions(Base):
@@ -85,7 +85,7 @@ class Regions(Base):
     name = Column(Text, unique=True)
     ord = Column(Integer)
     short_name = Column(Text)
-    tab_fo_d314_ids = Column(Integer, ForeignKey('tab_fo_d314.id'))
+    tab_fo_d314_ids = Column(Integer, ForeignKey('tab_fo_d314.id'), name='tab_fo_d314',)
     mid_name = Column(Text)
     real_name = Column(Text)
 
