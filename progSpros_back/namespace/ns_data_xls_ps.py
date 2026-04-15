@@ -313,7 +313,6 @@ class СomparisonDataXls(DatasetInfoMixin):
 note_parser = reqparse.RequestParser()
 note_parser.add_argument('start_year', type=int, help='Год начало', required=True)
 note_parser.add_argument('end_year', type=int, help='Год конец', required=True)
-# note_parser.add_argument('vers', type=str, help='Версия прогноза')
 # note_parser.add_argument('fo', type=str, help='Федеральный округ')
 note_parser.add_argument('regions', type=str, help='Регионы, разделённые запятыми', required=True)
 note_parser.add_argument('industry', type=str, help='Отрасль экономики', required=True)
@@ -344,19 +343,6 @@ class IndustryNote(DatasetInfoMixin):
             regions : List[str] = None if not (regions:=args.get('regions', False)) else regions.split(',')
             industry = args.get('industry', None)
 
-
-            # max_filter = (True is True) # максимальный
-            # expected_filter = (VersProgn.id.in_([0, 1, 2])) # ожидаемые
-            # possible_filter = (VersProgn.id.in_([3])) # потенциальные
-
-
-            # COLS = {
-            #     'fo': ColumnDescriptor(db_column=FedState.name),
-            #     'region': ColumnDescriptor(db_column=Regions.name),
-            #     'year': ColumnDescriptor(db_column=self.DATASET.year),
-            #     'summ': ColumnDescriptor(db_column=self.DATASET.summ, aggr_func = lambda col: func.sum(cast(col, Float))),
-            #     'potr': ColumnDescriptor(db_column=Contragent.name),
-            # }
             (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, regions=regions, industry=industry)
             data = db.execute(main_query).mappings().all()
             data = combine_note_data_sums(data)
@@ -374,43 +360,23 @@ class IndustryNote(DatasetInfoMixin):
 
             base_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная Записка Всего.docx', **sum_dict)
 
-            print(data)
-            # print('\n\n\n', data.get('regions_info', {}).values(), '\n\n\n\n')
+            
             regions_info = data.get('regions_info', {})
 
-            '''for fo_name, regions_dict in regions_info.items():
-                
-                for region_name, region_info in regions_dict.items():
-             
-                    base_doc.add_page_break()
-                    base_dict['region_name'] = region_name
-                    region_dict = get_region_docx_dict(region_info, base_dict)
-                    region_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Регион.docx', **region_dict)
-                    DocxBuilder.join_docs(base_doc, region_doc)
-                    
-            # test_dict = {'test1': 'darov', 'test2': 100500}
-            # result_f = DocxBuilder().fill_docx_template('testdocx.docx', **test_dict)
-            # result_f2 = DocxBuilder().fill_docx_template('testdocx.docx', **test_dict)
-            # result_f = DocxBuilder.join_docs(result_f, result_f2)
-            base_doc = DocxBuilder.save_file(base_doc)'''
             regions_processed = 0
             for fo_name, regions_dict in regions_info.items():
                 for region_name, region_info in regions_dict.items():
-                    
-                    # Add page break BEFORE joining (except for the first region)
                     if regions_processed > 0:
                         base_doc.add_page_break()
                     
                     base_dict['region_name'] = region_name
                     region_dict = get_region_docx_dict(region_info, base_dict)
                     region_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Регион.docx', **region_dict)
-                    
-                    # Join documents
+
                     DocxBuilder.join_docs(base_doc, region_doc)
                     
                     regions_processed += 1
 
-            # Save the document
             base_doc = DocxBuilder.save_file(base_doc)
 
             return send_file(

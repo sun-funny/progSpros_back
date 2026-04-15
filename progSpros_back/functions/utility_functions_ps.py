@@ -223,10 +223,9 @@ def tuple_sum(a: Tuple, b: Tuple) -> Tuple:
     return tuple(x + y for x, y in zip_longest(a, b, fillvalue=0))
 
 def combine_note_data_sums(data: List[Dict]) -> Dict:
-    # FIRST_LVL_MAPPER = version_leveled_mappings['ver_real_level1']
     EXPECT_MAPPER = version_leveled_mappings['expect']
     MAXIMUM_NAME = list(version_leveled_mappings['maximum'].values())[0]
-    # MAXIMUM_MAPPER = version_leveled_mappings['maximum']
+    
     result = {
         'summary': defaultdict(lambda: (0, 0)),
         'regions_info': defaultdict(lambda: defaultdict(lambda: {
@@ -244,8 +243,7 @@ def combine_note_data_sums(data: List[Dict]) -> Dict:
         for group_name in group_names:
             d[group_name] = (0, 0) # start_year, end_year
 
-    # fos = defaultdict(init_sums(dict()))
-
+    
     init_sums(summary)
     for row in data:
         fo_name = row['fo_name']
@@ -288,15 +286,12 @@ def add_region_detalization(info: Dict, data: List[Dict]):
         tu = get_tick(row.get('tu_list'), tick_mapping)
         pg = get_tick(row.get('pg_list'), tick_mapping)
         contract = get_tick(row.get('dogovor_list'), tick_mapping)
-        # if vers_name not in info['regions_info'][fo_name][region_name]:
-        #     info['regions_info'][fo_name][region_name][vers_name] = {}
+        
         if 'contragents' not in info['regions_info'][fo_name][region_name]:
             info['regions_info'][fo_name][region_name]['contragents'] = defaultdict(list)
-        # info['regions_info'][fo_name][region_name]['contragents'][vers_name] = []
+
         region_vers_info = info['regions_info'][fo_name][region_name]['contragents'][vers_name]
-        # if 'contragents' not in region_vers_info:
-        #     # region_vers_info = dict(region_vers_info)
-        #     region_vers_info['contragents'] = []
+        
 
         contragent_info = {'name': row.get('contragent_name'),
                            'summs': summs,

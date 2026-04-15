@@ -1,7 +1,5 @@
 from typing import Dict, Optional
 
-from sqlalchemy import Tuple
-
 ID_PREFIX_MAPPER = {
     'ожидаемые перспективные потребители': 'expect', 
     'действующие потребители': 'exist', 
@@ -83,7 +81,7 @@ def _generate_comparison_string(result_dict: dict, prefix_str: str):
 def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict):
     if contragents_data is None:
         return
-    # result_dict[f'{prefix_str}_comparison']
+    
     contragents_parts = []
     for data in contragents_data:
         pg_str = 'объект по ПГ' if data.get('pg') else None
