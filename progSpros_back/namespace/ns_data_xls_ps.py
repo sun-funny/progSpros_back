@@ -276,7 +276,7 @@ class СomparisonDataXls(DatasetInfoMixin):
                             yearly_data_cte.c.potr
                         )
             data1 : List[RowMapping] = db.execute(data_1_query).mappings().all()
-            data2 : List[RowMapping] = db.execute(data_2_query).mappings().all(); print(data2)
+            data2 : List[RowMapping] = db.execute(data_2_query).mappings().all()
             changes_pattern = '^изменение значения с .+ на .+$'
             non_empty_cols : List[str] = check_optional_cols(db=db, base_query=data_1_query, optional_cols=TABLE_1_OPTIONAL_COLS, pattern=changes_pattern)
 
@@ -313,8 +313,8 @@ class СomparisonDataXls(DatasetInfoMixin):
 note_parser = reqparse.RequestParser()
 note_parser.add_argument('start_year', type=int, help='Год начало', required=True)
 note_parser.add_argument('end_year', type=int, help='Год конец', required=True)
-# note_parser.add_argument('fo', type=str, help='Федеральный округ')
-note_parser.add_argument('regions', type=str, help='Регионы, разделённые запятыми', required=True)
+note_parser.add_argument('fo', type=str, help='Федеральный округ')
+note_parser.add_argument('regions', type=str, help='Регионы, разделённые запятыми')
 note_parser.add_argument('industry', type=str, help='Отрасль экономики', required=True)
 
 
@@ -328,6 +328,7 @@ class IndustryNote(DatasetInfoMixin):
         Аргументы:
             - start_eyear: int - год начала
             - end_year: int - год конца 
+            - fo: str - [опционально] список ФО
             - regions: str - [опционально] список регионов
             - industry: str -  отрасль экономики
         """
@@ -340,10 +341,11 @@ class IndustryNote(DatasetInfoMixin):
             start_year = args['start_year']
             end_year = args['end_year']
 
+            fos : List[str] = None if not (fos:=args.get('fo', False)) else fos.split(',')
             regions : List[str] = None if not (regions:=args.get('regions', False)) else regions.split(',')
             industry = args.get('industry', None)
 
-            (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, regions=regions, industry=industry)
+            (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, fos=fos, regions=regions, industry=industry)
             data = db.execute(main_query).mappings().all()
             data = combine_note_data_sums(data)
             # print(top3_query.all())

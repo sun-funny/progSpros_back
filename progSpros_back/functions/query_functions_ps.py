@@ -879,7 +879,7 @@ def ensure_list(items) -> List[Any]:
     else:
         items_list = [items]
     return items_list
-def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: List[str], industry: str) -> Tuple[Query, Query]:
+def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List[str], regions: List[str], industry: str) -> Tuple[Query, Query]:
     VERSION_MAPPER = version_leveled_mappings['ver_real_level1']
 
     def get_base_queries() -> Tuple[Tuple[DeclarativeBase, List[bool]]]:
@@ -897,7 +897,10 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: 
             # or_(regions is None, Regions.name.in_(ensure_list(regions))),
             Otrasl.name == industry
         ]
-
+        if fos and len(fos) > 0:
+            fos_list = ensure_list(regions)
+            base_filters_start.append(FedState.name.in_(fos_list))
+            base_filters_end.append(FedState.name.in_(fos_list))
         if regions and len(regions) > 0:
             regions_list = ensure_list(regions)
             base_filters_start.append(Regions.name.in_(regions_list))
@@ -1023,7 +1026,9 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, regions: 
         ranked_contragents.c.rank <= 3,
         Otrasl.name == industry
     ]
-    
+    if fos and len(fos) > 0:
+        fos_list = ensure_list(fos)
+        top3_query_filters.append(FedState.name.in_(fos_list))
     if regions and len(regions) > 0:
         regions_list = ensure_list(regions)
         top3_query_filters.append(Regions.name.in_(regions_list))
