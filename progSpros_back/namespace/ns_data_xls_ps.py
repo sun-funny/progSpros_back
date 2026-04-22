@@ -1,6 +1,8 @@
 from copy import copy
 from io import BytesIO
 from typing import List
+from docx import Document
+from docx.enum.text import WD_BREAK
 from flask_restx import Namespace, Resource, reqparse
 from flask import request, send_file
 from werkzeug.exceptions import BadRequest
@@ -373,8 +375,10 @@ class IndustryNote(DatasetInfoMixin):
             regions_processed = 0
             for fo_name, regions_dict in regions_info.items():
                 for region_name, region_info in regions_dict.items():
-                    if regions_processed > 0:
-                        base_doc.add_page_break()
+                    # if regions_processed > 0:
+                    last_paragraph = base_doc.paragraphs[-1].runs[-1]
+                    last_paragraph.add_break(WD_BREAK.PAGE)
+                        # base_doc.add_page_break()
                     
                     base_dict['region_name'] = region_name
                     region_dict = get_region_docx_dict(region_info, base_dict)
