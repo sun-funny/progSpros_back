@@ -5,7 +5,7 @@ from flask_restx import Namespace, Resource, reqparse
 from flask import request, send_file
 from werkzeug.exceptions import BadRequest
 from datetime import datetime
-from sqlalchemy import and_, case, func, RowMapping, cast, Float, or_
+from sqlalchemy import DateTime, and_, case, func, RowMapping, cast, Float, or_
 from sqlalchemy.orm import scoped_session
 
 # Import the database session
@@ -316,6 +316,7 @@ note_parser.add_argument('end_year', type=int, help='Год конец', require
 note_parser.add_argument('fo', type=str, help='Федеральный округ')
 note_parser.add_argument('regions', type=str, help='Регионы, разделённые запятыми')
 note_parser.add_argument('industry', type=str, help='Отрасль экономики', required=True)
+note_parser.add_argument('date', type=str, help='Дата выгрузки', required=True)
 
 
 @ns_data_xls_ps.route('/docx_note')
@@ -331,6 +332,7 @@ class IndustryNote(DatasetInfoMixin):
             - fo: str - [опционально] список ФО
             - regions: str - [опционально] список регионов
             - industry: str -  отрасль экономики
+            - date: str - дата выгрузки
         """
 
         try:
@@ -344,14 +346,17 @@ class IndustryNote(DatasetInfoMixin):
             fos : List[str] = None if not (fos:=args.get('fo', False)) else fos.split(',')
             regions : List[str] = None if not (regions:=args.get('regions', False)) else regions.split(',')
             industry = args.get('industry', None)
+            date = args.get('date', None)
+            if date:
+                date = datetime.strptime(date, '%d.%m.%Y').date()
 
-            (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, fos=fos, regions=regions, industry=industry)
+            (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, fos=fos, regions=regions, industry=industry, date=date)
             data = db.execute(main_query).mappings().all()
+            # print('-\n'*15, data)
             data = combine_note_data_sums(data)
             # print(top3_query.all())
             # print(db.execute(top3_query).mappings().all())
             add_region_detalization(data, db.execute(top3_query).mappings().all())
-            print(data)
 
             base_dict = {
                 'year_start': start_year,

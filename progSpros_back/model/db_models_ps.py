@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint, Table, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Numeric, Text, PrimaryKeyConstraint, Table, DateTime, ForeignKey, func
+from sqlalchemy.orm import relationship, declared_attr, Mapped
 # from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -22,9 +22,29 @@ Base = declarative_base()
 class PSDATA(Base):
     __tablename__ = 'tab_progn_spr_gaz_d314'
     __table_args__ = {'schema': 'public'}
-
+    __mapper_args__ = {
+        'primary_key': ['tab_region_d314_ids', 
+                        'tab_otrasl_economy_d314_ids',
+                        'tab_contragent_d314_ids',
+                        'gen_schema',
+                        'date']
+    }
     # Поля описываются точно как в QUERY:
-    id = Column(Integer, primary_key=True)
+    # id = Column(Integer, primary_key=True)
+    @declared_attr
+    def id(cls):
+        return None#column_property(
+        #     func.row_number().over(order_by=cls.year),
+        #     deferred=False
+        # )
+    @declared_attr
+    def tu308(cls):
+        return None
+    
+    @declared_attr
+    def post(cls):
+        return None
+    
     tab_fo_d314_ids = Column(Integer)  # Ключ к Федеральный округ
     tab_region_d314_ids = Column(Integer)  # Ключ к Регион
     tab_otrasl_economy_d314_ids = Column(Integer)  # Ключ к Отрасль
@@ -35,7 +55,7 @@ class PSDATA(Base):
     otl_usl = Column(Integer)  # Ключ к Отл.усл
     takeorpay = Column(Integer)  # Ключ к take-or-pay
     tab_tu_visual_d314_ids = Column(Integer)  # Ключ к ТУ
-    tu308 = Column(Integer)  # Ключ к ТУ308
+    # tu308 = Column(Integer)  # Ключ к ТУ308
     tab_infr_d314_ids = Column(Integer)  # Ключ к Наличие инфраструктуры
     gen_schema= Column(Integer)  # Ключ к Ген.схема
     poruch = Column(String)  # Ключ к Поручения
@@ -43,7 +63,7 @@ class PSDATA(Base):
     tab_ver_real_pr_d314_ids = Column(Integer)  # Ключ к Вероятность реализации проекта
     year = Column(Integer)  # Ключ к Год
     summ = Column(Numeric)  # Ключ к Сумма
-    post = Column(Integer)  # Ключ к Поставщик
+    # post = Column(Integer)  # Ключ к Поставщик
     tab_proizvoditel_d314_ids = Column(Integer)  # Ключ к Производитель
     tab_start_gaz_d314_ids = Column(Integer)  # Ключ к Начало отбора
     date = Column(DateTime(timezone=False))

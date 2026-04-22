@@ -12,13 +12,15 @@ def _is_none_or_zero(item):
     return (item is None or item == 0)
 def format_float(num: float) -> str:
 
-    formatted_num = num / 1000000
+    formatted_num = num #/ 1000
     after_comma = str(formatted_num).split('.')[-1]
     i = 0
+    found_num = False
     for i, char in enumerate(after_comma, start=1):
         if char != '0':
+            found_num = True
             break
-    num_str = f"{(formatted_num):,.{max(2, i+1)}f}" # в миллионах
+    num_str = f"{(formatted_num):,.{max(2, i+1) if found_num else 2}f}" # в миллионах
     num_str = num_str.replace(',', ' ').replace('.', ',')
 
     return num_str

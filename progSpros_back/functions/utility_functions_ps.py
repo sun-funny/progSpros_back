@@ -220,7 +220,7 @@ def mapping(map):
 
 
 def tuple_sum(a: Tuple, b: Tuple) -> Tuple:
-    return tuple(x + y for x, y in zip_longest(a, b, fillvalue=0))
+    return tuple(x + y if x is not None and y is not None else None for x, y in zip_longest(a, b, fillvalue=None))
 
 def combine_note_data_sums(data: List[Dict]) -> Dict:
     EXPECT_MAPPER = version_leveled_mappings['expect']

@@ -1,7 +1,9 @@
-﻿from datetime import datetime
+﻿from copy import copy
+from datetime import date, datetime
 from enum import Enum
+import itertools
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from sqlalchemy import desc, func, and_, case, CTE, literal, or_, select, Case, text, Text
+from sqlalchemy import Column, desc, func, and_, case, CTE, literal, or_, select, Case, text, Text
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql.expression import cast
 from sqlalchemy.orm import aliased, scoped_session, Query
@@ -866,11 +868,20 @@ def check_optional_cols(db: scoped_session, base_query: Query, optional_cols: Di
 
 
 ######### Пояснительная записка
-def map_column(column, mapper: Dict):
-    when_clauses = []
+def reverse_mapper_list(mapper: Dict) -> Dict:
+    reversed_dict = {}
     for key, value in mapper.items():
-        when_clauses.append((cast(column, Text) == str(key), literal(value)))
-    return case(*when_clauses, else_=cast(column, Text))
+        if value not in reversed_dict:
+            reversed_dict[value] = []
+        reversed_dict[value].append(key)
+    return reversed_dict
+
+def _get_map_table_subq(column: Column, mapper: Dict, mapped_name: str = 'mapped_name'):
+    unions : List[Tuple[bool, List[Column]]] = [] # фильтр/юнион
+    for key, value in mapper.items():
+        unions.append((column.in_(ensure_list(value)), key))
+    return unions
+
 def ensure_list(items) -> List[Any]:
     if isinstance(items, str):
         items_list = [items]
@@ -879,230 +890,159 @@ def ensure_list(items) -> List[Any]:
     else:
         items_list = [items]
     return items_list
-def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List[str], regions: List[str], industry: str) -> Tuple[Query, Query]:
-    VERSION_MAPPER = version_leveled_mappings['ver_real_level1']
-
-    def get_base_queries() -> Tuple[Tuple[DeclarativeBase, List[bool]]]:
-        PSDataStart = aliased(PSDATA)
-        PSDataEnd = aliased(PSDATA)
+def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List[str], regions: List[str], industry: str, date) -> Tuple[Query, Query]:
+    VERSION_MAPPER = reverse_mapper_list(copy(version_leveled_mappings['ver_real_level1']))
+    
+    filters_unions = _get_map_table_subq(VersProgn.full_name, VERSION_MAPPER)
+    
+    # first_filter, first_label = filters_unions[0]
+    version_mapping_subq = db.query(
+        VersProgn.id.label('id'),
+        VersProgn.full_name.label('full_name'), 
+        VersProgn.full_name.label('mapped_name')
+    ).filter(VersProgn.full_name.not_in(list(itertools.chain.from_iterable(VERSION_MAPPER.values()))))
+    
+    for filter_cond, label_value in filters_unions:
+        union_part = db.query(
+                VersProgn.id.label('id'),
+                VersProgn.full_name.label('full_name'),
+                literal(label_value).label('mapped_name')
+            ).filter(filter_cond)#.cte('union_part')
+        version_mapping_subq = version_mapping_subq.union(union_part)
         
-        base_filters_start = [
-            or_(PSDataStart.year == start_year, PSDataEnd.year == end_year),
-            # or_(regions is None, Regions.name.in_(ensure_list(regions))),
-            Otrasl.name == industry,
-        ]
-        
-        base_filters_end = [
-            PSDataEnd.year == end_year,
-            # or_(regions is None, Regions.name.in_(ensure_list(regions))),
-            Otrasl.name == industry
-        ]
-        if fos and len(fos) > 0:
-            fos_list = ensure_list(regions)
-            base_filters_start.append(FedState.name.in_(fos_list))
-            base_filters_end.append(FedState.name.in_(fos_list))
-        if regions and len(regions) > 0:
-            regions_list = ensure_list(regions)
-            base_filters_start.append(Regions.name.in_(regions_list))
-            base_filters_end.append(Regions.name.in_(regions_list))
-
-        return ((PSDataStart, base_filters_start), (PSDataEnd, base_filters_end))
-
-    (PSDataStart, base_filters_start), (PSDataEnd, base_filters_end) = get_base_queries()
-    mapped_version_expr = map_column(VersProgn.full_name, VERSION_MAPPER)
-    mapped_version_col = mapped_version_expr.label('version_name')
-    # mapped_version_col = map_column(VersProgn.full_name, VERSION_MAPPER).label('version_name')
-
-    # base_filters_start = [
-    #         PSDataStart.year == start_year,
-    #         # or_(regions is None, Regions.name.in_(ensure_list(regions))),
-    #         Otrasl.name == industry
-    #     ]
-
+    # print('\n*'*10, db.execute(version_mapping_subq).mappings().all())
+    # print('\n'*10, str(version_mapping_subq.with_labels().statement))
+    version_mapping_subq = version_mapping_subq.subquery('version_mapping')
+    cols = list(version_mapping_subq.c)
+    id_col = cols[0]
+    mapped_name_col = cols[2] 
+    base_filters = [Otrasl.name == industry,
+                    PSDATA.year.in_([start_year, end_year]),
+                    PSDATA.date == date]
+    if fos and len(fos) > 0:
+        fos_list = ensure_list(regions)
+        base_filters.append(FedState.name.in_(fos_list))
+    if regions and len(regions) > 0:
+        regions_list = ensure_list(regions)
+        base_filters.append(Regions.name.in_(regions_list))
+    # def get_year_filters() -> Tuple[Query]:
+    #     start_subq = db.query(PSDATA).filter(*base_filters, PSDATA.year == start_year).subquery()
+    #     end_subq = db.query(PSDATA).filter(*base_filters, PSDATA.year == end_year).subquery()
     main_query = db.query(
-        Regions.name.label('region_name'),
-        FedState.short_name.label('fo_name'),
-        # VersProgn.id.label('version_id'),
-        mapped_version_col,#(map_column(VersProgn.full_name, VERSION_MAPPER)).label('version_name'),
-        # VersProgn.short_name.label('version_short_name'),
-        func.coalesce(func.sum(PSDataStart.summ), 0).label('summ_start'),
-        func.coalesce(func.sum(PSDataEnd.summ), 0).label('summ_end'),
+            Regions.name.label('region_name'),
+            FedState.short_name.label('fo_name'),
+            mapped_name_col.label('version_name'),
+            func.sum(
+                case(
+                    (PSDATA.year == start_year, PSDATA.summ),
+                    else_=None
+                )
+            ).label('summ_start'),
+
+            func.sum(
+                case(
+                    (PSDATA.year == end_year, PSDATA.summ),
+                    else_=None
+                )
+            ).label('summ_end'),
+            # func.sum(PSDATA.summ).filter(PSDATA.year == start_year).label('summ_start'),
+            # func.sum(PSDATA.summ).filter(PSDATA.year == end_year).label('summ_end')
+        ).select_from(
+            PSDATA
+        ).join(
+            Regions, Regions.id == PSDATA.tab_region_d314_ids
+        ).join(
+            FedState, FedState.id == Regions.tab_fo_d314_ids
+        ).join(
+            version_mapping_subq, id_col == PSDATA.tab_ver_real_pr_d314_ids
+        ).join(
+            Otrasl, Otrasl.id == PSDATA.tab_otrasl_economy_d314_ids
+        ).filter(
+            *base_filters
+        ).group_by(
+            Regions.id,
+            Regions.name,
+            FedState.ord,
+            FedState.short_name,
+            mapped_name_col
+        ).order_by(
+            FedState.ord, 
+            Regions.name
+        )
+    
+
+    ranking_q = db.query(
+        PSDATA.tab_region_d314_ids.label('region_id'),
+        mapped_name_col.label('version_name'),
+        id_col.label('version_id'),
+        PSDATA.tab_contragent_d314_ids.label('contragent_id'),
+        func.sum(PSDATA.summ).label('total_summ')
+    ).select_from(
+        PSDATA
     ).join(
-        Regions, Regions.id == PSDataStart.tab_region_d314_ids
+        version_mapping_subq, id_col == PSDATA.tab_ver_real_pr_d314_ids
+    ).join(
+        Otrasl, Otrasl.id == PSDATA.tab_otrasl_economy_d314_ids
+    ).join(
+        Regions, Regions.id == PSDATA.tab_region_d314_ids
     ).join(
         FedState, FedState.id == Regions.tab_fo_d314_ids
-    ).join(
-        VersProgn, VersProgn.id == PSDataStart.tab_ver_real_pr_d314_ids
-    ).join(
-        Otrasl, Otrasl.id == PSDataStart.tab_otrasl_economy_d314_ids
-    ).join(
-        PSDataEnd, and_(
-            PSDataEnd.tab_region_d314_ids == PSDataStart.tab_region_d314_ids,
-            PSDataStart.tab_contragent_d314_ids == PSDataEnd.tab_contragent_d314_ids,
-            # PSDataEnd.tab_ver_real_pr_d314_ids == PSDataStart.tab_ver_real_pr_d314_ids,
-            PSDataEnd.tab_otrasl_economy_d314_ids == PSDataStart.tab_otrasl_economy_d314_ids,
-            # PSDataEnd.tab_fo_d314_ids == PSDataStart.tab_fo_d314_ids,
-            # PSDataEnd.year == end_year
-        ),
-        isouter=True
-    # ).join(
-    #     Regions, Regions.id == PSDataEnd.tab_region_d314_ids
     ).filter(
-        *base_filters_start
+        PSDATA.year == end_year,  # ранжирование по end году 
+        *base_filters
     ).group_by(
-        VersProgn.id,
-        Regions.id, Regions.name, #Regions.short_name,
-        FedState.ord, FedState.short_name,# FedState.short_name,
-        mapped_version_expr,#(map_column(VersProgn.full_name, VERSION_MAPPER)).label('version_name'),
+        PSDATA.tab_region_d314_ids,
+        mapped_name_col, id_col,
+        PSDATA.tab_contragent_d314_ids
     ).order_by(
-        FedState.ord, Regions.name, VersProgn.id
-    )
-
-    # ТОП ПОТРЕБИТЕЛЕЙ
-    # (PSDataStartContr, filters_start), (PSDataEndContr, filters_end) = get_base_queries()
-    base_filters_start = [
-        or_(PSDataStart.year == start_year, PSDataEnd.year == end_year),
-        Otrasl.name == industry
-    ]
+        PSDATA.tab_region_d314_ids,
+        mapped_name_col,
+        desc(func.sum(PSDATA.summ))
+    ).limit(3).subquery('rank')
     
-    if regions and len(regions) > 0:
-        regions_list = ensure_list(regions)
-        base_filters_start.append(Regions.name.in_(regions_list))
     
-    contragent_total = db.query(
-        PSDataStart.tab_region_d314_ids.label('region_id'),
-        PSDataStart.tab_ver_real_pr_d314_ids.label('version_id'),
-        PSDataStart.tab_otrasl_economy_d314_ids.label('industry_id'),
-        mapped_version_col,#map_column(VersProgn.full_name, VERSION_MAPPER).label('version_name'),
-        PSDataStart.tab_contragent_d314_ids.label('contragent_id'),
-        func.sum(PSDataStart.summ).label('total_summ_start'),
-        func.sum(PSDataEnd.summ).label('total_summ_end')
-    ).filter(
-        *base_filters_start
-    ).group_by(
-        PSDataStart.tab_otrasl_economy_d314_ids,
-        PSDataStart.tab_region_d314_ids,
-        mapped_version_expr,#map_column(VersProgn.full_name, VERSION_MAPPER).label('version_name'),
-        PSDataStart.tab_ver_real_pr_d314_ids,
-        PSDataStart.tab_contragent_d314_ids,
-        map_column(VersProgn.full_name, VERSION_MAPPER)
-    ).join(
-        Regions, Regions.id == PSDataStart.tab_region_d314_ids
-    ).join(
-        Otrasl, Otrasl.id == PSDataStart.tab_otrasl_economy_d314_ids
-    ).join(
-        PSDataEnd, and_(
-            PSDataEnd.tab_region_d314_ids == PSDataStart.tab_region_d314_ids,
-            PSDataEnd.tab_ver_real_pr_d314_ids == PSDataStart.tab_ver_real_pr_d314_ids,
-            PSDataEnd.tab_contragent_d314_ids == PSDataStart.tab_contragent_d314_ids,
-            # PSDataEnd.year == end_year
-        ),
-        isouter=True
-    ).join(
-        VersProgn, VersProgn.id == PSDataStart.tab_ver_real_pr_d314_ids
-    )
-    # print(contragent_total.all())
-    contragent_total = contragent_total.subquery()
-    ranked_contragents = db.query(
-        contragent_total.c.region_id,
-        contragent_total.c.version_id,
-        contragent_total.c.version_name,
-        contragent_total.c.contragent_id,
-        contragent_total.c.industry_id,
-        # (func.coalesce(contragent_total.c.total_summ_start, 0) + 
-        #  func.coalesce(contragent_total.c.total_summ_end, 0)).label('total_summ'),
-        func.row_number().over(
-            partition_by=[contragent_total.c.region_id, contragent_total.c.version_name, contragent_total.c.industry_id],
-            order_by=desc(
-                # func.coalesce(contragent_total.c.total_summ_start, 0) + 
-                func.coalesce(contragent_total.c.total_summ_end, 0)
-            )
-        ).label('rank')
-    )
-    print(db.execute(ranked_contragents).mappings().all())
-    ranked_contragents = ranked_contragents.subquery('ranked_contragents')
-
-    top3_query_filters = [
-        ranked_contragents.c.rank <= 3,
-        Otrasl.name == industry
-    ]
-    if fos and len(fos) > 0:
-        fos_list = ensure_list(fos)
-        top3_query_filters.append(FedState.name.in_(fos_list))
-    if regions and len(regions) > 0:
-        regions_list = ensure_list(regions)
-        top3_query_filters.append(Regions.name.in_(regions_list))
     top3_query = db.query(
-        # ranked_contragents.c.region_id,
         FedState.short_name.label('fo_name'),
         Regions.name.label('region_name'),
-        ranked_contragents.c.version_id,
-        ranked_contragents.c.version_name,
-        # ranked_contragents.c.contragent_id,
-        # ranked_contragents.c.rank,
+        ranking_q.c.version_name,
         Contragent.name.label('contragent_name'),
-        func.sum(func.coalesce(PSDataStart.summ, 0)).label('summ_start'),
-        func.sum(func.coalesce(PSDataEnd.summ, 0)).label('summ_end'),
-
+        func.sum(PSDATA.summ).filter(PSDATA.year == start_year).label('summ_start'),
+        func.sum(PSDATA.summ).filter(PSDATA.year == end_year).label('summ_end'),
         func.string_agg(func.distinct(TU.name), ', ').label('tu_list'),
-        # func.count(func.distinct(PSDataStart.tab_tu_visual_d314_ids)).label('tu_count'),
         func.string_agg(func.distinct(PG.name), ', ').label('pg_list'),
-        # func.count(func.distinct(PSDataStart.tab_pg_visual_d314_ids)).label('pg_count'),
-        
-        # func.string_agg(func.distinct(StGaz.name), ', ').label('start_gaz_names'),
-        func.string_agg(func.distinct(Dogovor.name), ', ').label('dogovor_list'),
-        # func.string_agg(func.distinct(Infr.name), ', ').label('infr_names'),
-        # func.string_agg(func.distinct(StPotr.name), ', ').label('status_potreb_names')
+        func.string_agg(func.distinct(Dogovor.name), ', ').label('dogovor_list')
     ).select_from(
-        ranked_contragents
+        ranking_q
     ).join(
-        Contragent, Contragent.id == ranked_contragents.c.contragent_id
+        Contragent, Contragent.id == ranking_q.c.contragent_id
+    ).join(
+        Regions, Regions.id == ranking_q.c.region_id
+    ).join(
+        FedState, FedState.id == Regions.tab_fo_d314_ids
     ).outerjoin(
-        PSDataStart, and_(
-            PSDataStart.tab_region_d314_ids == ranked_contragents.c.region_id,
-            PSDataStart.tab_ver_real_pr_d314_ids == ranked_contragents.c.version_id,
-            PSDataStart.tab_contragent_d314_ids == ranked_contragents.c.contragent_id,
-            # PSDataStart.year == start_year
+        PSDATA, and_(
+            PSDATA.tab_region_d314_ids == ranking_q.c.region_id,
+            PSDATA.tab_ver_real_pr_d314_ids == ranking_q.c.version_id,
+            PSDATA.tab_contragent_d314_ids == ranking_q.c.contragent_id,
+            PSDATA.date == date,
+            PSDATA.year.in_([start_year, end_year])
         )
     ).outerjoin(
-        PSDataEnd, and_(
-            PSDataEnd.tab_region_d314_ids == ranked_contragents.c.region_id,
-            PSDataEnd.tab_ver_real_pr_d314_ids == ranked_contragents.c.version_id,
-            PSDataEnd.tab_contragent_d314_ids == ranked_contragents.c.contragent_id,
-            # PSDataEnd.year == end_year
-        )
-    ).join(
-        Otrasl, ranked_contragents.c.industry_id == Otrasl.id
-    ).join(
-        Regions, ranked_contragents.c.region_id == Regions.id
-    # ).outerjoin(
-    #     VersProgn, VersProgn.id == PSDataStart.tab_ver_real_pr_d314_ids
-    ).join(
-        FedState, FedState.id == Regions.tab_fo_d314_ids,
+        TU, TU.id == PSDATA.tab_tu_visual_d314_ids
     ).outerjoin(
-        TU, TU.id == PSDataStart.tab_tu_visual_d314_ids
+        PG, PG.id == PSDATA.tab_pg_visual_d314_ids
     ).outerjoin(
-        PG, PG.id == PSDataStart.tab_pg_visual_d314_ids
-    ).outerjoin(
-        Dogovor, Dogovor.id == PSDataStart.tab_dogovor_visual_d314_ids
-    ).filter(
-        *top3_query_filters
+        Dogovor, Dogovor.id == PSDATA.tab_dogovor_visual_d314_ids
     ).group_by(
         FedState.short_name,
         Regions.name,
-        ranked_contragents.c.region_id,
-        ranked_contragents.c.version_name,
-        ranked_contragents.c.version_id,
-        ranked_contragents.c.industry_id,
-        # ranked_contragents.c.contragent_id,
-        ranked_contragents.c.rank,
-        Contragent.name,
-        # Contragent.inn
-    ).order_by(
-        ranked_contragents.c.region_id,
-        ranked_contragents.c.version_name,
-        ranked_contragents.c.rank
+        ranking_q.c.version_name,
+        ranking_q.c.version_id,
+        ranking_q.c.region_id,
+        ranking_q.c.contragent_id,
+        Contragent.name
     )
+    
 
     return (main_query, top3_query)
 
