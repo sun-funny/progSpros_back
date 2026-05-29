@@ -1,9 +1,11 @@
-from copy import copy
+from copy import copy, deepcopy
 from itertools import chain
 import os
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from dataclasses import dataclass
 from docx import Document
+from docx.enum.text import WD_COLOR_INDEX
+from docx.text.run import Run as DocxRun
 from sqlalchemy import Column, Case
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -403,6 +405,11 @@ class ExcelBuilder(UtilsMixin):
         return bio.getvalue()
 
 
+_HL_START = ''
+_HL_END = ''
+_HL_PATTERN = re.compile(f'{re.escape(_HL_START)}(.*?){re.escape(_HL_END)}', re.DOTALL)
+
+
 class _KeyReplacer:
     def __init__(self, p, key, value) -> None:
         self.p = p
@@ -441,7 +448,6 @@ class _KeyReplacer:
             else:
                 run_to_change[run_char_index] = ""
 
-        # make the real replace
         for index, text in self.runs_to_change.items():
             run = self.p.runs[index]
             run.text = "".join(text)
@@ -453,12 +459,15 @@ class DocxBuilder(UtilsMixin):
 
     def fill_docx_template(self, template_name: str, **kwargs) -> Document:
         self.doc = Document(self._get_template_path(template_name))
-        
+
         for key, value in kwargs.items():
-            key = self.PLACEHOLDER(key)
+            placeholder = self.PLACEHOLDER(key)
             for p in self._get_all_paragraphs():
-                self._replace_key(p, key, str(value))
-        
+                self._replace_key(p, placeholder, str(value))
+
+        for p in self._get_all_paragraphs():
+            self._expand_highlight_markers(p)
+
         return self.doc
         
 
@@ -486,16 +495,37 @@ class DocxBuilder(UtilsMixin):
     def _replace_key(cls, paragraph, key: str, value: str):
         if key not in paragraph.text:
             return
-        
+
         replace_success = False
         for run in paragraph.runs:
             if key in run.text:
                 run.text = run.text.replace(key, value)
                 replace_success = True
-        
+
         if not replace_success:
             cls._replace_broken_key(paragraph, key, value)
-    
+
+    @staticmethod
+    def _expand_highlight_markers(paragraph) -> None:
+        for run in list(paragraph.runs):
+            if _HL_START not in run.text:
+                continue
+            parts = _HL_PATTERN.split(run.text)
+            if len(parts) <= 1:
+                continue
+            original_xml = deepcopy(run._element)
+            run.text = parts[0]
+            prev_elem = run._element
+            for i, part in enumerate(parts[1:]):
+                new_xml = deepcopy(original_xml)
+                new_run = DocxRun(new_xml, run._parent)
+                new_run.text = part
+                # split() with a capture group alternates: [plain, captured, plain, captured, ...]
+                # so parts[1:] has captured (highlighted) at even indices (0, 2, 4...)
+                new_run.font.highlight_color = WD_COLOR_INDEX.YELLOW if i % 2 == 0 else None
+                prev_elem.addnext(new_xml)
+                prev_elem = new_xml
+
     @classmethod
     def _replace_broken_key(cls, paragraph, key: str, value: str):
         while key in paragraph.text:

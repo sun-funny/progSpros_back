@@ -16,10 +16,47 @@ down-dev:
 psql-db:
 	docker exec -it progSpros_PGDB psql -U postgres -d progSpros
 update-templates:
-	docker cp ./templates/. progSpros_backend:/progSpros_back/templates/
+	docker cp ./progSpros_back/templates/. progSpros_backend:/progSpros_back/templates/
 update-reqs:
 	docker cp ./expreport_backend/requirements.txt expr_backend:/opt/foresight/expreport_backend/
 	docker exec -t expr_backend pip3 install --no-cache-dir -r /opt/foresight/expreport_backend/requirements.txt
 update-db:
 	docker exec -i progSpros_PGDB bash -c "psql -U postgres -c \"SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'progSpros' AND pid <> pg_backend_pid();\" -c \"DROP DATABASE IF EXISTS progSpros;\" -c \"CREATE DATABASE progSpros;\""
 	docker exec -i progSpros_PGDB psql -U postgres -d progSpros < Progn_Spros.sql
+
+deploy-backend:
+	$(eval DATE := $(shell date +%d_%m_%Y))
+	$(eval DIRNAME := progSpros_DEPLOY_$(DATE))
+	$(eval TMPDIR := /tmp/$(DIRNAME))
+	mkdir -p "$(TMPDIR)"
+	cp -r progSpros_back/. "$(TMPDIR)/"
+	find "$(TMPDIR)" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
+	find "$(TMPDIR)" -name "*.pyc" -delete
+	rm -f "$(TMPDIR)/config_ps.py" "$(TMPDIR)/Progn_Spros_app.py"
+	find "$(TMPDIR)" -maxdepth 1 -iname "dockerfile*" -delete
+	find "$(TMPDIR)" -maxdepth 1 -iname ".flaskenv" -delete
+	find "$(TMPDIR)" -maxdepth 1 -iname "requirements*.txt" -delete
+	cd /tmp && zip -r "$(DIRNAME).zip" "$(DIRNAME)"
+	mv "/tmp/$(DIRNAME).zip" "/tmp/$(DIRNAME).pefx"
+	rm -rf "$(TMPDIR)"
+	mv "/tmp/$(DIRNAME).pefx" .
+	@echo "Created $(DIRNAME).pefx"
+
+deploy-backend-staged:
+	$(eval DATE := $(shell date +%d_%m_%Y))
+	$(eval DIRNAME := progSpros_UPDATE_$(DATE))
+	$(eval TMPDIR := /tmp/$(DIRNAME))
+	rm -rf "$(TMPDIR)" && mkdir -p "$(TMPDIR)"
+	git diff --cached --name-only | grep '^progSpros_back/' | sed 's|^progSpros_back/||' | \
+		rsync -a --files-from=- progSpros_back/ "$(TMPDIR)/"
+	find "$(TMPDIR)" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
+	find "$(TMPDIR)" -name "*.pyc" -delete
+	rm -f "$(TMPDIR)/config_ps.py" "$(TMPDIR)/Progn_Spros_app.py"
+	find "$(TMPDIR)" -maxdepth 1 -iname "dockerfile*" -delete
+	find "$(TMPDIR)" -maxdepth 1 -iname ".flaskenv" -delete
+	find "$(TMPDIR)" -maxdepth 1 -iname "requirements*.txt" -delete
+	cd /tmp && zip -r "$(DIRNAME).zip" "$(DIRNAME)"
+	mv "/tmp/$(DIRNAME).zip" "/tmp/$(DIRNAME).pefx"
+	rm -rf "$(TMPDIR)"
+	mv "/tmp/$(DIRNAME).pefx" .
+	@echo "Created $(DIRNAME).pefx"

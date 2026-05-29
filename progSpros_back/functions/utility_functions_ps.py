@@ -223,8 +223,10 @@ def tuple_sum(a: Tuple, b: Tuple) -> Tuple:
     return tuple(x + y if x is not None and y is not None else None for x, y in zip_longest(a, b, fillvalue=None))
 
 def combine_note_data_sums(data: List[Dict]) -> Dict:
+    # print(data)
     EXPECT_MAPPER = version_leveled_mappings['expect']
     MAXIMUM_NAME = list(version_leveled_mappings['maximum'].values())[0]
+    # print(EXPECT_MAPPER, MAXIMUM_NAME)
     
     result = {
         'summary': defaultdict(lambda: (0, 0)),
@@ -264,7 +266,7 @@ def combine_note_data_sums(data: List[Dict]) -> Dict:
             region_sum[vers_name] = tuple_sum(region_sum[vers_name], summs)
         summary[MAXIMUM_NAME] = tuple_sum(summary[MAXIMUM_NAME], summs)
         region_sum[MAXIMUM_NAME] = tuple_sum(region_sum[MAXIMUM_NAME], summs)
-    
+    # print(result)
     return result
 
 def add_region_detalization(info: Dict, data: List[Dict]):
@@ -273,6 +275,7 @@ def add_region_detalization(info: Dict, data: List[Dict]):
         region_name = row.get('region_name')
         vers_name = row.get('version_name')
         summs = (row.get('summ_start', 0), row.get('summ_end', 0))
+        
         if not all([fo_name, region_name, vers_name]):
             continue
 
@@ -294,6 +297,6 @@ def add_region_detalization(info: Dict, data: List[Dict]):
         
 
         contragent_info = {'name': row.get('contragent_name'),
-                           'summs': summs,
+                           'summs': summs, 'start_gaz_year': row.get('start_gaz_year'),
                            'tu': tu, 'pg': pg, 'contract': contract}
         region_vers_info.append(contragent_info)

@@ -367,18 +367,18 @@ class IndustryNote(DatasetInfoMixin):
             }
             sum_dict = get_summary_docx_dict(data, base_dict)
 
-            base_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная Записка Всего.docx', **sum_dict)
-
+            base_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Заголовок.docx', **sum_dict)
+            if sum(len(regions_info) for _, regions_info in data['regions_info'].items()) > 1:
+                sum_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная Записка Всего.docx', **sum_dict)
+                DocxBuilder.join_docs(base_doc, sum_doc)
             
             regions_info = data.get('regions_info', {})
 
             regions_processed = 0
             for fo_name, regions_dict in regions_info.items():
                 for region_name, region_info in regions_dict.items():
-                    # if regions_processed > 0:
-                    last_paragraph = base_doc.paragraphs[-1].runs[-1]
-                    last_paragraph.add_break(WD_BREAK.PAGE)
-                        # base_doc.add_page_break()
+                    # last_paragraph = base_doc.paragraphs[-1].runs[-1]
+                    # last_paragraph.add_break(WD_BREAK.PAGE)
                     
                     base_dict['region_name'] = region_name
                     region_dict = get_region_docx_dict(region_info, base_dict)
@@ -388,6 +388,7 @@ class IndustryNote(DatasetInfoMixin):
                     
                     regions_processed += 1
 
+            DocxBuilder.join_docs(base_doc, DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Примечание.docx'))
             base_doc = DocxBuilder.save_file(base_doc)
 
             return send_file(

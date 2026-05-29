@@ -9,7 +9,7 @@ from sqlalchemy.sql.expression import cast
 from sqlalchemy.orm import aliased, scoped_session, Query
 from progSpros_back.functions.file_upload_functions_ps import CaseDescriptor, ColumnDescriptor
 from progSpros_back.model.mappings_ps import version_leveled_mappings
-from progSpros_back.model.db_models_ps import PG, PSDATA, TU, Contragent, Dogovor, FedState, Otrasl, Regions, VersProgn
+from progSpros_back.model.db_models_ps import PG, PSDATA, TU, Contragent, Dogovor, FedState, Otrasl, Regions, StGaz, VersProgn
 # from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr, StGaz
 
 '''# Округа и регионы
@@ -920,7 +920,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
                     PSDATA.year.in_([start_year, end_year]),
                     PSDATA.date == date]
     if fos and len(fos) > 0:
-        fos_list = ensure_list(regions)
+        fos_list = ensure_list(fos)
         base_filters.append(FedState.name.in_(fos_list))
     if regions and len(regions) > 0:
         regions_list = ensure_list(regions)
@@ -989,6 +989,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         FedState, FedState.id == Regions.tab_fo_d314_ids
     ).filter(
         PSDATA.year == end_year,  # ранжирование по end году 
+        PSDATA.tab_contragent_d314_ids.not_in([44915, 44502, 46048]), # исключить 'действующие потребители'
         *base_filters
     ).group_by(
         PSDATA.tab_region_d314_ids,
@@ -1006,6 +1007,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         Regions.name.label('region_name'),
         ranking_q.c.version_name,
         Contragent.name.label('contragent_name'),
+        StGaz.name.label('start_gaz_year'),
         func.sum(PSDATA.summ).filter(PSDATA.year == start_year).label('summ_start'),
         func.sum(PSDATA.summ).filter(PSDATA.year == end_year).label('summ_end'),
         func.string_agg(func.distinct(TU.name), ', ').label('tu_list'),
@@ -1028,6 +1030,8 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
             PSDATA.year.in_([start_year, end_year])
         )
     ).outerjoin(
+        StGaz, StGaz.id == PSDATA.tab_start_gaz_d314_ids
+    ).outerjoin(
         TU, TU.id == PSDATA.tab_tu_visual_d314_ids
     ).outerjoin(
         PG, PG.id == PSDATA.tab_pg_visual_d314_ids
@@ -1040,8 +1044,10 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         ranking_q.c.version_id,
         ranking_q.c.region_id,
         ranking_q.c.contragent_id,
-        Contragent.name
-    )
+        ranking_q.c.total_summ,
+        Contragent.name,
+        StGaz.name
+    ).order_by(desc(ranking_q.c.total_summ))
     
 
     return (main_query, top3_query)

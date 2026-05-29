@@ -10,6 +10,9 @@ ID_PREFIX_MAPPER = {
 
 def _is_none_or_zero(item):
     return (item is None or item == 0)
+
+def _hl(text: str) -> str:
+    return f'{text}'
 def format_float(num: float) -> str:
 
     formatted_num = num #/ 1000
@@ -25,53 +28,80 @@ def format_float(num: float) -> str:
 
     return num_str
 def _generate_comparison_string(result_dict: dict, prefix_str: str):
+    is_in_future = (prefix_str in {'max', 'promised'})
+
+    if is_in_future:
+        end_value = result_dict.get(f'{prefix_str}_end')
+        start_value = result_dict.get(f'{prefix_str}_start')
+        end_year = result_dict.get('year_end')
+
+        if prefix_str == 'max' and end_value == result_dict.get('promised_end'):
+            result_string = f'{_hl("соответствует ожидаемому")}.'
+        elif _is_none_or_zero(end_value):
+            result_string = f'в {end_year} потребление {_hl("отсутствует")}.'
+        else:
+            end_text = _hl(f'{format_float(end_value)} млн куб. м')
+            if _is_none_or_zero(start_value):
+                result_string = f'в {end_year} году оценивается в {end_text}.'
+            else:
+                diff = end_value - start_value
+                diff_tag = 'прирост'
+                if diff > 0:
+                    diff_text = _hl(f'+{format_float(diff)}')
+                elif diff < 0:
+                    diff_text = _hl(f'-{format_float(abs(diff))}')
+                    diff_tag = 'снижение'
+                else:
+                    diff_text = _hl('0,00')
+                result_string = (
+                    f'в {end_year} году оценивается в {end_text}, '
+                    f'{diff_tag} потребления к {end_year} году может составить {diff_text} млн куб. м.'
+                )
+        result_dict[f'{prefix_str}_comparison'] = result_string
+        return
+
     start_value = result_dict.get(f'{prefix_str}_start')
     end_value = result_dict.get(f'{prefix_str}_end')
-    start_year, end_year = result_dict.get(f'year_start'), result_dict.get(f'year_end')
-    
-    
+    start_year, end_year = result_dict.get('year_start'), result_dict.get('year_end')
+
     can_calculate_diff = True
-    
+
     if _is_none_or_zero(start_value):
-        start_text = 'отсутствует'
+        start_text = _hl('отсутствует')
         can_calculate_diff = False
     else:
-        start_text = f'составляет {format_float(start_value)} млн куб. м'
-    
+        start_text = f'составляет {_hl(f"{format_float(start_value)} млн куб. м")}'
+
     if _is_none_or_zero(end_value):
-        end_text = 'отсутствует'
+        end_text = _hl('отсутствует')
         can_calculate_diff = False
     else:
-        end_text = f'{format_float(end_value)} млн куб. м'
-    
+        end_text = _hl(f'{format_float(end_value)} млн куб. м')
+
     if not can_calculate_diff:
         if _is_none_or_zero(start_value) and _is_none_or_zero(end_value):
-            result_string = (
-                f'в {start_year} году отсутствует, и на {end_year} год также отсутствует.'
-            )
+            result_string = f'{_hl("отсутствует")}.'
         elif _is_none_or_zero(start_value):
-            # 
             result_string = (
-                f'в {start_year} году отсутствует, а на {end_year} год ожидается {end_text}.'
+                f'в {start_year} году {start_text}, а на {end_year} год оценивается до {end_text}.'
             )
         else:
             result_string = (
-                f'в {start_year} году {start_text}, а на {end_year} год данные отсутствуют.'
+                f'в {start_year} году {start_text}, а на {end_year} год данные {_hl("отсутствуют")}.'
             )
     else:
-        # оба значения 
         diff = end_value - start_value
-        
+
         if diff > 0:
             diff_title = 'прирост'
-            diff_text = f'+{format_float(diff)}'
+            diff_text = _hl(f'+{format_float(diff)}')
         elif diff < 0:
             diff_title = 'снижение'
-            diff_text = f'-{format_float(abs(diff))}'
+            diff_text = _hl(f'-{format_float(abs(diff))}')
         else:
             diff_title = 'изменение'
-            diff_text = 'отсутствует'
-        
+            diff_text = _hl('отсутствует')
+
         result_string = (
             f'в {start_year} году {start_text}, {diff_title} потребления '
             f'к {end_year} году оценивается в {diff_text} млн куб. м '
@@ -84,12 +114,15 @@ def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict)
     if contragents_data is None:
         return
     
+    is_start_gaz_year_needed = (prefix_str in {'expect', 'potential'})
+
     contragents_parts = []
     for data in contragents_data:
         pg_str = 'объект по ПГ' if data.get('pg') else None
         contract_str = 'есть договор' if data.get('contract') else 'нет договора'
         tu_str = 'есть ТУ' if data.get('tu') else 'нет ТУ'
-        indicators_str = ', '.join(filter(lambda x: x is not None, [pg_str, contract_str, tu_str]))
+        start_gaz_year_str = f'начало поставки {start_gaz_year} год' if (start_gaz_year:=data.get('start_gaz_year', False and is_start_gaz_year_needed)) else None
+        indicators_str = ', '.join(filter(lambda x: x is not None and x is not False, [start_gaz_year_str, pg_str, contract_str, tu_str]))
         contragents_parts.append(f'{data.get("name")} {format_float(data.get("summs", (None, None))[1])} млн куб м ({indicators_str})')
     nl = ';\n'
     result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:\n\n {nl.join(contragents_parts)}.'
@@ -98,7 +131,6 @@ def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict)
 def _get_summs_dict(result_dict: Dict, detalisations_data: Dict, contragents_data: Optional[Dict] = None):
     received_keys = set()
     for key, summs in detalisations_data.items():
-
         if not (prefix_str:=ID_PREFIX_MAPPER.get(key, False)):
             continue
         received_keys.add(key)
