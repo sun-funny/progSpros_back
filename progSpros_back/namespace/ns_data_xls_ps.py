@@ -122,9 +122,11 @@ class DataXls(DatasetInfoMixin):
         
 
 parser = reqparse.RequestParser()
-parser.add_argument('date1', type=str, help='Дата начало', required=True)
-parser.add_argument('date2', type=str, help='Дата конец', required=True)
+parser.add_argument('year1', type=int, help='Год начало', required=True)
+parser.add_argument('year2', type=int, help='Год конец', required=True)
 parser.add_argument('vers', type=str, help='Версия прогноза')
+parser.add_argument('date1', type=str, help='Дата выгрузки (для начала)', required=True)
+parser.add_argument('date2', type=str, help='Дата выгрузки (для конца)', required=True)
 parser.add_argument('fo', type=str, help='Федеральный округ')
 parser.add_argument('region', type=str, help='Регион')
 
@@ -137,8 +139,10 @@ class СomparisonDataXls(DatasetInfoMixin):
         """
         Возвращает обратно данные для выгрузки в Excel сравнительных таблиц
         Аргументы:
-            - date1: str - дату начала [DD.MM.YYYY]
-            - date2: str - дату конца [DD.MM.YYYY]
+            - year1: str - год начало
+            - year2: str - год конец
+            - date1 - дата выгрузки (для даты начала) [DD.MM.YYYY]
+            - date2 - дата выгрузки (для даты конца) [DD.MM.YYYY]
             - fo: str - [опционально] федеральный округ
             - region: str - [опционально] регион
             - vers: str - [опционально] вероятность
@@ -149,8 +153,15 @@ class СomparisonDataXls(DatasetInfoMixin):
 
             args = parser.parse_args()
             
-            date1 = self.get_date(args['date1'])
-            date2 = self.get_date(args['date2'])
+            year1 = args['year1']
+            year2 = args['year2']
+
+            upload_date1 = args.get('date1', None)
+            if upload_date1:
+                upload_date1 = datetime.strptime(upload_date1, '%d.%m.%Y').date()
+            upload_date2 = args.get('date2', None)
+            if upload_date2:
+                upload_date2 = datetime.strptime(upload_date2, '%d.%m.%Y').date()
 
             if ((vers := args.pop('vers', None)) is not None):
                 vers = {value: key for key, value in vers_mapping.items()}[vers]
@@ -180,8 +191,8 @@ class СomparisonDataXls(DatasetInfoMixin):
             }
 
             DATE_CTE_DATA_COLS.update(TABLE_1_OPTIONAL_COLS)
-            date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
-            date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
+            date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
+            date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
             
 
             version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte, optional_cols=TABLE_1_OPTIONAL_COLS)
@@ -190,23 +201,36 @@ class СomparisonDataXls(DatasetInfoMixin):
                 'fo': ColumnDescriptor(db_column=FedState.name),
                 'region': ColumnDescriptor(db_column=Regions.name),
                 'year': ColumnDescriptor(db_column=self.DATASET.year),
-                'summ': ColumnDescriptor(db_column=self.DATASET.summ, aggr_func = lambda col: func.sum(cast(col, Float))),
+                'date': ColumnDescriptor(db_column=self.DATASET.year),
+                'summ': ColumnDescriptor(db_column=self.DATASET.summ,
+                                         aggr_func = lambda col: func.sum(case(
+                                             (self.DATASET.date==upload_date1, -cast(col, Float)),
+                                             (self.DATASET.date==upload_date2, cast(col, Float)),
+                                             else_=None
+                                         ))
+                                         ),
                 'potr': ColumnDescriptor(db_column=Contragent.name),
             }
             yearly_data_cte = create_simple_query(db=db, base_table=self.DATASET, columns=YEARLY_DATA_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False)
-            yearly_data_cte = yearly_data_cte.group_by(FedState.name, Regions.name, Contragent.name, self.DATASET.year)
+            yearly_data_cte = yearly_data_cte.group_by(FedState.name, Regions.name, Contragent.name, self.DATASET.year, self.DATASET.date)
             yearly_data_cte = yearly_data_cte.cte('yearly_data')
 
             TABLE_1_DATA_COLS = {
                 'fo': ColumnDescriptor(db_column=yearly_data_cte.c.fo, excel_title='Федеральный округ', is_filter=True),
                 'region': ColumnDescriptor(db_column=yearly_data_cte.c.region, excel_title='Регион', is_filter=True),
-                'potr': ColumnDescriptor(db_column=yearly_data_cte.c.potr, excel_title='Потребитель'),
+                'potr': ColumnDescriptor(
+                    aggr_func=func.max,
+                    case_desc=CaseDescriptor(sql_case=case(
+                        (version_info_cte.c.potr_is_new.is_(True), func.concat('*', yearly_data_cte.c.potr)),
+                        else_=yearly_data_cte.c.potr
+                    )),
+                    excel_title='Потребитель'),
             }
 
 
             # объёмы по годам
             TABLE_1_YEARS_COLS = {}
-            for year in range(date1.year, date2.year+1):
+            for year in range(year1, year2+1):
                 year_col_desc = ColumnDescriptor(
                                     aggr_func=func.max,
                                     case_desc=CaseDescriptor(sql_case = case((yearly_data_cte.c.year == year, yearly_data_cte.c.summ), else_=None)),
@@ -250,7 +274,10 @@ class СomparisonDataXls(DatasetInfoMixin):
             if vers is not None:
                 data_filters.append(func.coalesce(version_info_cte.c.vers_date1, version_info_cte.c.vers_date2) == vers)
 
-            data_1_query = data_1_query.filter(or_(*[getattr(version_info_cte.c, f'{id}_count', 0) > 1 for id in TABLE_1_OPTIONAL_COLS.keys()]))
+            data_1_query = data_1_query.filter(or_(
+                version_info_cte.c.potr_is_new.is_(True),
+                *[getattr(version_info_cte.c, f'{id}_count', 0) > 1 for id in TABLE_1_OPTIONAL_COLS.keys()]
+            ))
 
             for id, col in ALL_TABLE_1_COLS.items():
                 if col.is_filter and id in args and (arg:=args[id]):
@@ -286,14 +313,16 @@ class СomparisonDataXls(DatasetInfoMixin):
 
 
             TABLE_1 = TableDescriptor(list_name='Таблица 1',
-                                      data=data1, 
-                                      main_cols=TABLE_1_DATA_COLS, optional_cols=TABLE_1_OPTIONAL_COLS, 
-                                      highlight_pattern=changes_pattern, highlighted_cols=list(list(TABLE_1_OPTIONAL_COLS.keys()) + ['vers']), 
+                                      data=data1,
+                                      main_cols=TABLE_1_DATA_COLS, optional_cols=TABLE_1_OPTIONAL_COLS,
+                                      highlight_pattern=changes_pattern, highlighted_cols=list(list(TABLE_1_OPTIONAL_COLS.keys()) + ['vers']),
+                                      row_highlight_col='potr', row_highlight_pattern=r'^\*',
                                       groupings_headers_height=1)
             TABLE_2 = TableDescriptor(list_name='Таблица 2',
-                                      data=data2, 
-                                      main_cols=TABLE_2_COLS, #optional_cols=TABLE_2_OPTIONAL_COLS, 
-                                      highlight_pattern=changes_pattern, highlighted_cols=['vers'],#TABLE_2_OPTIONAL_COLS.keys(), 
+                                      data=data2,
+                                      main_cols=TABLE_2_COLS, #optional_cols=TABLE_2_OPTIONAL_COLS,
+                                      highlight_pattern=changes_pattern, highlighted_cols=['vers'],#TABLE_2_OPTIONAL_COLS.keys(),
+                                      row_highlight_col='potr', row_highlight_pattern=r'^\*',
                                       groupings_headers_height=1)
             
 

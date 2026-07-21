@@ -220,7 +220,11 @@ def mapping(map):
 
 
 def tuple_sum(a: Tuple, b: Tuple) -> Tuple:
-    return tuple(x + y if x is not None and y is not None else None for x, y in zip_longest(a, b, fillvalue=None))
+    def _add(x, y):
+        if x is None and y is None:
+            return None
+        return (x or 0) + (y or 0)
+    return tuple(_add(x, y) for x, y in zip_longest(a, b, fillvalue=None))
 
 def combine_note_data_sums(data: List[Dict]) -> Dict:
     # print(data)
@@ -239,7 +243,7 @@ def combine_note_data_sums(data: List[Dict]) -> Dict:
     regions_info = result['regions_info']
     
     group_names = set(version_leveled_mappings['ver_real_level1'].values())
-    group_names.add(EXPECT_MAPPER.values())
+    group_names.update(EXPECT_MAPPER.values())
     group_names.add(MAXIMUM_NAME)
     def init_sums(d: Dict) -> Dict:
         for group_name in group_names:
@@ -266,7 +270,7 @@ def combine_note_data_sums(data: List[Dict]) -> Dict:
             region_sum[vers_name] = tuple_sum(region_sum[vers_name], summs)
         summary[MAXIMUM_NAME] = tuple_sum(summary[MAXIMUM_NAME], summs)
         region_sum[MAXIMUM_NAME] = tuple_sum(region_sum[MAXIMUM_NAME], summs)
-    # print(result)
+    print('resulllt', result)
     return result
 
 def add_region_detalization(info: Dict, data: List[Dict]):
@@ -283,7 +287,7 @@ def add_region_detalization(info: Dict, data: List[Dict]):
             if value is None:
                 return False
             if len(value) > 0:
-                value = value.split(',')[0]
+                value = value.split(',')[-1]
             return mapper.get(value, value)
         
         tu = get_tick(row.get('tu_list'), tick_mapping)

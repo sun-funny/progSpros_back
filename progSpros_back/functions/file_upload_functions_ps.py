@@ -44,6 +44,8 @@ class TableDescriptor:
     highlight_pattern: Optional[str] = None
     highlight_color: Optional[str] = 'ffff00'
     highlighted_cols: Optional[List[str]] = None
+    row_highlight_col: Optional[str] = None
+    row_highlight_pattern: Optional[str] = None
 
 @dataclass
 class TableBlockDescriptor:
@@ -286,10 +288,14 @@ class ExcelBuilder(UtilsMixin):
         self._copy_headers(headers_tree)
 
     def _write_data(self):
-        if (self.highlight_pattern is not None):
+        highlight_fill = None
+        if (self.highlight_pattern is not None or self.row_highlight_pattern is not None):
             highlight_fill = PatternFill(start_color=self.highlight_color, end_color=self.highlight_color, fgColor=self.highlight_color, fill_type="solid")
+        if (self.highlight_pattern is not None):
             self.highlight_pattern = re.compile(self.highlight_pattern)
             cols_to_highlight = set()
+        if (self.row_highlight_pattern is not None):
+            self.row_highlight_pattern = re.compile(self.row_highlight_pattern)
         
         max_col = self.main_ws.max_column
         self.start_row, self.start_column = coordinate_to_tuple(self.table_desc.location) 
@@ -364,19 +370,29 @@ class ExcelBuilder(UtilsMixin):
             row_idx = self.start_row + i
             apply_template_style(row_idx)
             write_row_values(row_idx, row)
+            if self.row_highlight_pattern is not None and self.row_highlight_pattern.match(str(row.get(self.row_highlight_col))):
+                for col_idx in range(self.start_column, max_col + 1):
+                    self.main_ws.cell(row_idx, col_idx).fill = highlight_fill
+                if self._clean_row_hl_checks:
+                    hl_col_idx = template_headers_mapper.get(self.row_highlight_col)
+                    if hl_col_idx:
+                        cell = self.main_ws.cell(row_idx, hl_col_idx)
+                        cell.value = self.row_highlight_pattern.sub('', str(cell.value))
 
-    def build_export_xlsx(self, template_name: str, *table_descs):
+    def build_export_xlsx(self, template_name: str, *table_descs, clean_row_hl_checks: bool = True):
         template_path = self._get_template_path(template_name)
         if not os.path.exists(template_path):
             raise ValueError(f"Не найден шаблон выгрузки: {template_path}")
         
         self._wb = load_workbook(template_path)
-        
+        self._clean_row_hl_checks = clean_row_hl_checks
         for table_desc in table_descs:
             self.table_desc = table_desc
             self.highlight_pattern = self.table_desc.highlight_pattern
             self.highlight_color = self.table_desc.highlight_color
             self.highlighted_cols = self.table_desc.highlighted_cols or []
+            self.row_highlight_col = self.table_desc.row_highlight_col
+            self.row_highlight_pattern = self.table_desc.row_highlight_pattern
             self.data = table_desc.data
 
             self.main_ws = self._wb[f'{table_desc.list_name}_main']
@@ -457,18 +473,48 @@ class DocxBuilder(UtilsMixin):
     # PLACEHOLDER_PATTERN = r'%([^%]+?)%'
     PLACEHOLDER = lambda self, key: f'%{key}%'
 
+    @staticmethod
+    def _rm_nonbreaks_hyphens(s: str) -> Optional[str]:
+        if s is None: return None
+        return s.replace('\u00a0', ' ').replace('\u00ad', '')
+
     def fill_docx_template(self, template_name: str, **kwargs) -> Document:
         self.doc = Document(self._get_template_path(template_name))
 
         for key, value in kwargs.items():
             placeholder = self.PLACEHOLDER(key)
             for p in self._get_all_paragraphs():
-                self._replace_key(p, placeholder, str(value))
+                self._replace_key(p, placeholder, self._rm_nonbreaks_hyphens(str(value)))
 
-        for p in self._get_all_paragraphs():
-            self._expand_highlight_markers(p)
+        # for p in self._get_all_paragraphs():
+        #     self._expand_highlight_markers(p)
+
+        self._strip_special_chars(self.doc)
 
         return self.doc
+
+    @staticmethod
+    def _strip_special_chars(doc: Document) -> None:
+        NBSP = ' '
+        SOFT_HYPHEN = '­'
+
+        nsmap = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+        for tag in ('w:softHyphen', 'w:noBreakHyphen'):
+            for elem in doc.element.body.findall(f'.//{tag}', nsmap):
+                elem.getparent().remove(elem)
+
+        for section in [doc] + list(doc.sections):
+            sources = [section] if section is doc else [section.header, section.footer]
+            for src in sources:
+                for p in src.paragraphs:
+                    for run in p.runs:
+                        run.text = run.text.replace(NBSP, ' ').replace(SOFT_HYPHEN, '')
+                for table in src.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for p in cell.paragraphs:
+                                for run in p.runs:
+                                    run.text = run.text.replace(NBSP, ' ').replace(SOFT_HYPHEN, '')
         
 
     def _get_all_paragraphs(self) -> List[Any]:

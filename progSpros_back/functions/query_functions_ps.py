@@ -816,6 +816,7 @@ def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, opt
         func.coalesce(date1_cte.c.fo, date2_cte.c.fo).label('fo'),
         func.coalesce(date1_cte.c.region, date2_cte.c.region).label('region'),
         func.coalesce(date1_cte.c.potr, date2_cte.c.potr).label('potr'),
+        and_(date1_cte.c.potr.is_(None), date2_cte.c.potr.isnot(None)).label('potr_is_new'),
         *optional_cols_versions,
     ).select_from(
         date1_cte.outerjoin(
@@ -989,7 +990,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         FedState, FedState.id == Regions.tab_fo_d314_ids
     ).filter(
         PSDATA.year == end_year,  # ранжирование по end году 
-        PSDATA.tab_contragent_d314_ids.not_in([44915, 44502, 46048]), # исключить 'действующие потребители'
+        PSDATA.tab_contragent_d314_ids.not_in([44915, 44502, 46048, 44484]), # 44484 - 'действующие потребители'
         *base_filters
     ).group_by(
         PSDATA.tab_region_d314_ids,
