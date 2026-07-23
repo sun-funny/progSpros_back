@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 build-dev:
 	docker-compose -f docker-compose.dev.yaml up -d db 
 	docker exec -i progSpros_PGDB psql psql -v ON_ERROR_STOP=1 -p 5432 -U postgres -d progSpros < Progn_Spros.sql
@@ -49,6 +51,30 @@ deploy-backend-staged:
 	rm -rf "$(TMPDIR)" && mkdir -p "$(TMPDIR)"
 	git diff --cached --name-only | grep '^progSpros_back/' | sed 's|^progSpros_back/||' | \
 		rsync -a --files-from=- progSpros_back/ "$(TMPDIR)/"
+	find "$(TMPDIR)" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
+	find "$(TMPDIR)" -name "*.pyc" -delete
+	rm -f "$(TMPDIR)/config_ps.py" "$(TMPDIR)/Progn_Spros_app.py"
+	find "$(TMPDIR)" -maxdepth 1 -iname "dockerfile*" -delete
+	find "$(TMPDIR)" -maxdepth 1 -iname ".flaskenv" -delete
+	find "$(TMPDIR)" -maxdepth 1 -iname "requirements*.txt" -delete
+	cd /tmp && zip -r "$(DIRNAME).zip" "$(DIRNAME)"
+	mv "/tmp/$(DIRNAME).zip" "/tmp/$(DIRNAME).pefx"
+	rm -rf "$(TMPDIR)"
+	mv "/tmp/$(DIRNAME).pefx" .
+	@echo "Created $(DIRNAME).pefx"
+
+
+deploy-backend-since:
+	@test -n "$(COMMIT)" || { echo "Usage: make deploy-backend-since COMMIT=<hash> [FILENAME=<name>] NOTE: !!! включает незакомиченные изменения тоже"; exit 1; }
+	$(eval DATE := $(shell date +%d_%m_%Y))
+	$(eval DIRNAME := $(if $(FILENAME),$(FILENAME),progSpros_upd_$(DATE)))
+	$(eval TMPDIR := /tmp/$(DIRNAME))
+	rm -rf "$(TMPDIR)" && mkdir -p "$(TMPDIR)"
+	git diff -z --name-only --diff-filter=d "$(COMMIT)^" HEAD | grep -z '^progSpros_back/' | while IFS= read -r -d '' file; do \
+		rel="$${file#progSpros_back/}"; \
+		mkdir -p "$(TMPDIR)/$$(dirname "$$rel")"; \
+		cp -- "$$file" "$(TMPDIR)/$$rel"; \
+	done
 	find "$(TMPDIR)" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 	find "$(TMPDIR)" -name "*.pyc" -delete
 	rm -f "$(TMPDIR)/config_ps.py" "$(TMPDIR)/Progn_Spros_app.py"
