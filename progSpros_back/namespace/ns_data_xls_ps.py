@@ -201,7 +201,6 @@ class СomparisonDataXls(DatasetInfoMixin):
                 'fo': ColumnDescriptor(db_column=FedState.name),
                 'region': ColumnDescriptor(db_column=Regions.name),
                 'year': ColumnDescriptor(db_column=self.DATASET.year),
-                'date': ColumnDescriptor(db_column=self.DATASET.year),
                 'summ': ColumnDescriptor(db_column=self.DATASET.summ,
                                          aggr_func = lambda col: func.sum(case(
                                              (self.DATASET.date==upload_date1, -cast(col, Float)),
@@ -212,7 +211,7 @@ class СomparisonDataXls(DatasetInfoMixin):
                 'potr': ColumnDescriptor(db_column=Contragent.name),
             }
             yearly_data_cte = create_simple_query(db=db, base_table=self.DATASET, columns=YEARLY_DATA_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False)
-            yearly_data_cte = yearly_data_cte.group_by(FedState.name, Regions.name, Contragent.name, self.DATASET.year, self.DATASET.date)
+            yearly_data_cte = yearly_data_cte.group_by(FedState.name, Regions.name, Contragent.name, self.DATASET.year)
             yearly_data_cte = yearly_data_cte.cte('yearly_data')
 
             TABLE_1_DATA_COLS = {
