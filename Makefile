@@ -86,3 +86,8 @@ deploy-backend-since:
 	rm -rf "$(TMPDIR)"
 	mv "/tmp/$(DIRNAME).pefx" .
 	@echo "Created $(DIRNAME).pefx"
+
+switch-workspace:
+	docker stop $$(docker ps -q); \
+	docker compose -f 'docker-compose.dev.yaml' up -d --build; \
+	docker logs --follow progSpros_backend

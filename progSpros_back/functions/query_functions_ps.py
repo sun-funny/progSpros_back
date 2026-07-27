@@ -782,7 +782,8 @@ def modify_optional_column(cte: CTE, id: str, col_desc: ColumnDescriptor):
     return col_desc
                    
 
-def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, optional_cols: Dict[str, ColumnDescriptor]) -> CTE:
+def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, optional_cols: Dict[str, ColumnDescriptor], identity_cols: Optional[List[str]] = None, cte_name: str = 'version_info') -> CTE:
+    identity_cols = identity_cols or []
     optional_cols_versions = []
 
     for id, desc in optional_cols.items():
@@ -812,24 +813,31 @@ def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, opt
                                     else_=1
                                 ).label(f'{id}_count'))
 
+    join_conditions = [
+        date1_cte.c.fo == date2_cte.c.fo,
+        date1_cte.c.region == date2_cte.c.region,
+        date1_cte.c.potr == date2_cte.c.potr,
+    ]
+    identity_selects = []
+    for id in identity_cols:
+        join_conditions.append(getattr(date1_cte.c, id).is_not_distinct_from(getattr(date2_cte.c, id)))
+        identity_selects.append(func.coalesce(getattr(date1_cte.c, id), getattr(date2_cte.c, id)).label(id))
+
     version_info = db.query().with_entities(
         func.coalesce(date1_cte.c.fo, date2_cte.c.fo).label('fo'),
         func.coalesce(date1_cte.c.region, date2_cte.c.region).label('region'),
         func.coalesce(date1_cte.c.potr, date2_cte.c.potr).label('potr'),
         and_(date1_cte.c.potr.is_(None), date2_cte.c.potr.isnot(None)).label('potr_is_new'),
+        *identity_selects,
         *optional_cols_versions,
     ).select_from(
         date1_cte.outerjoin(
             date2_cte,
-            and_(
-                date1_cte.c.fo == date2_cte.c.fo,
-                date1_cte.c.region == date2_cte.c.region,
-                date1_cte.c.potr == date2_cte.c.potr
-            ),
+            and_(*join_conditions),
             full=True
         )
     )
-    version_info = version_info.cte('version_info')
+    version_info = version_info.cte(cte_name)
 
     return version_info
 
