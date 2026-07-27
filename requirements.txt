@@ -1,9 +1,11 @@
 aniso8601==9.0.1
 attrs==24.2.0
+babel==2.18.0
 blinker==1.8.2
 cachelib==0.9.0
 click==8.1.7
 colorama==0.4.6
+docxcompose==1.4.1
 et-xmlfile==1.1.0
 Flask==3.0.3
 Flask-Caching==2.3.0

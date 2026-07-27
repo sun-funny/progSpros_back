@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
 from docx.text.run import Run as DocxRun
+from docxcompose.composer import Composer
 from sqlalchemy import Column, Case
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -581,11 +582,10 @@ class DocxBuilder(UtilsMixin):
     @staticmethod
     def join_docs(*docs: Document) -> Document:
         base_doc : Document = docs[0]
+        composer = Composer(base_doc)
         for doc in docs[1:]:
-            # base_doc.add_page_break()
-            for element in doc.element.body:
-                base_doc.element.body.append(element)
-        
+            composer.append(doc)
+
         return base_doc
     
     @staticmethod
