@@ -7,16 +7,16 @@ from flask_restx import Namespace, Resource, reqparse
 from flask import request, send_file
 from werkzeug.exceptions import BadRequest
 from datetime import datetime
-from sqlalchemy import DateTime, and_, case, func, RowMapping, cast, Float, or_
+from sqlalchemy import DateTime, and_, case, func, RowMapping, cast, Float, or_, Text
 from sqlalchemy.orm import scoped_session
 
 # Import the database session
 from progSpros_back.database_ps import errorhandler, set_db_connection
 from progSpros_back.functions.data_utils_functions import get_region_docx_dict, get_summary_docx_dict
 from progSpros_back.functions.utility_functions_ps import add_region_detalization, combine_note_data_sums
-from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr, StGaz
+from progSpros_back.model.db_models_ps import PG, PSDATA, FedState, Regions, Contragent, Otrasl, GroupPost, Proizv, Dogovor, TU, Infr, VersProgn, StPotr, StGaz, GenSchema
 from progSpros_back.model.mappings_ps import yn_mapping, tick_mapping, vers_mapping
-from progSpros_back.functions.query_functions_ps import create_simple_query, get_note_query, get_version_info_cte, modify_optional_column
+from progSpros_back.functions.query_functions_ps import create_simple_query, get_note_query, get_version_info_cte
 from progSpros_back.functions.file_upload_functions_ps import CaseDescriptor, ColumnDescriptor, DocxBuilder, ExcelBuilder, TableDescriptor, prepare_all_data#!, build_export_xlsx
 
 
@@ -40,6 +40,8 @@ class DatasetInfoMixin(Resource):
             VersProgn.__tablename__: PSDATA.tab_ver_real_pr_d314_ids,
             PG.__tablename__: PSDATA.tab_pg_visual_d314_ids,
             StGaz.__tablename__: PSDATA.tab_start_gaz_d314_ids,
+            GenSchema.__tablename__: PSDATA.gen_schema
+
         }
         
     DATASET = PSDATA
@@ -168,7 +170,6 @@ class СomparisonDataXls(DatasetInfoMixin):
                 vers = db.query(VersProgn.name).filter(VersProgn.id == vers).one_or_none()[0]
                 
             TABLE_1_OPTIONAL_COLS = {
-                'vers': ColumnDescriptor(db_column=VersProgn.name, excel_title='Вероятность реализации проекта', is_filter=True), # Вероятность реализации
                 'field': ColumnDescriptor(db_column=Otrasl.name, excel_title='Отрасль'), # Отрасль
                 'status': ColumnDescriptor(db_column=StPotr.name, excel_title='Статус потребителя'), # Статус потребителя
                 'group': ColumnDescriptor(db_column=GroupPost.name, excel_title='Группа поставщиков'), # Группа поставщиков
@@ -178,7 +179,7 @@ class СomparisonDataXls(DatasetInfoMixin):
                 'takeorpay': ColumnDescriptor(db_column=self.DATASET.takeorpay, excel_title='take-or-pay', mapping=yn_mapping), # take-or-pay
                 'tu': ColumnDescriptor(db_column=TU.name, excel_title='ТУ', mapping=tick_mapping), # ТУ
                 'infr': ColumnDescriptor(db_column=Infr.name, excel_title='Наличие инф-ры', mapping=tick_mapping), # Наличие инф-ры
-                'gen_scheme': ColumnDescriptor(db_column=self.DATASET.gen_schema, excel_title='Ген схема'), # Ген схема
+                'gen_scheme': ColumnDescriptor(db_column=GenSchema.name, excel_title='Ген схема'), # Ген схема
                 'tasks': ColumnDescriptor(db_column=self.DATASET.poruch, excel_title='Поручения'), # Поручения
                 'work_status': ColumnDescriptor(db_column=PG.name, excel_title='Ход выполнения работ', mapping=tick_mapping), # Ход выполнения работ
                 'select_start': ColumnDescriptor(db_column=StGaz.name, excel_title='Начало отбора'), # Начало отбора
@@ -187,50 +188,27 @@ class СomparisonDataXls(DatasetInfoMixin):
             # В Таблице 1 (и только в ней) запись идентифицируется потребителем
             # ПЛЮС всеми этими атрибутами разом: один потребитель с двумя разными
             # наборами значений (напр. двумя отраслями) даёт две отдельных строки.
-            # Таблица 2 остаётся на уровне (fo, region, potr), как и раньше.
-            RECORD_ID_COLS = [id for id in TABLE_1_OPTIONAL_COLS if id != 'vers']
+            # Таблица 2 остаётся на уровне (fo, region, potr).
+            RECORD_ID_COLS = list(TABLE_1_OPTIONAL_COLS.keys())
             record_id_db_columns = [TABLE_1_OPTIONAL_COLS[id].db_column for id in RECORD_ID_COLS]
             record_id_mappings = [TABLE_1_OPTIONAL_COLS[id].mapping for id in RECORD_ID_COLS]
 
+            # Узкая пара CTE только для определения "потребитель целиком новый"
+            # (появился на date2, отсутствовал на date1) — используется для
+            # маркера "*" в обеих таблицах.
             NARROW_DATE_CTE_DATA_COLS = {
                 'fo': ColumnDescriptor(db_column=FedState.name),
                 'region': ColumnDescriptor(db_column=Regions.name),
                 'potr': ColumnDescriptor(db_column=Contragent.name),
-                'vers': TABLE_1_OPTIONAL_COLS['vers'],
             }
             date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=NARROW_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
             date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=NARROW_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
 
-            version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte, optional_cols={'vers': TABLE_1_OPTIONAL_COLS['vers']}, cte_name='version_info')
+            version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte)
 
-            WIDE_DATE_CTE_DATA_COLS = {
-                'fo': ColumnDescriptor(db_column=FedState.name),
-                'region': ColumnDescriptor(db_column=Regions.name),
-                'potr': ColumnDescriptor(db_column=Contragent.name),
-                **{id: TABLE_1_OPTIONAL_COLS[id] for id in RECORD_ID_COLS},
-            }
-            wide_date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=WIDE_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date1).distinct(FedState.name, Regions.name, Contragent.name, *record_id_db_columns).cte('wide_date1_data')
-            wide_date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=WIDE_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date2).distinct(FedState.name, Regions.name, Contragent.name, *record_id_db_columns).cte('wide_date2_data')
-
-            record_info_cte = get_version_info_cte(db=db, date1_cte=wide_date1_cte, date2_cte=wide_date2_cte, optional_cols={}, identity_cols=RECORD_ID_COLS, cte_name='record_info')
-
-            YEARLY_DATA_CTE_DATA_COLS = {
-                'fo': ColumnDescriptor(db_column=FedState.name),
-                'region': ColumnDescriptor(db_column=Regions.name),
-                'year': ColumnDescriptor(db_column=self.DATASET.year),
-                'summ': ColumnDescriptor(db_column=self.DATASET.summ,
-                                         aggr_func = lambda col: func.sum(case(
-                                             (self.DATASET.date==upload_date1, -cast(col, Float)),
-                                             (self.DATASET.date==upload_date2, cast(col, Float)),
-                                             else_=None
-                                         ))
-                                         ),
-                'potr': ColumnDescriptor(db_column=Contragent.name),
-            }
-            yearly_data_cte = create_simple_query(db=db, base_table=self.DATASET, columns=YEARLY_DATA_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False)
-            yearly_data_cte = yearly_data_cte.group_by(FedState.name, Regions.name, Contragent.name, self.DATASET.year)
-            yearly_data_cte = yearly_data_cte.cte('yearly_data')
-
+            # vers может меняться из года в год для одного и того же объекта, поэтому
+            # сравнивается погодично, на уровне (fo, region, potr, <13 атрибутов>, year),
+            # а не одним произвольно выбранным значением на потребителя.
             WIDE_YEARLY_DATA_CTE_DATA_COLS = {
                 'fo': ColumnDescriptor(db_column=FedState.name),
                 'region': ColumnDescriptor(db_column=Regions.name),
@@ -243,38 +221,60 @@ class СomparisonDataXls(DatasetInfoMixin):
                                          ))
                                          ),
                 'potr': ColumnDescriptor(db_column=Contragent.name),
+                'vers_date1': ColumnDescriptor(db_column=VersProgn.name,
+                                         aggr_func = lambda col: func.max(case((self.DATASET.date==upload_date1, col), else_=None))
+                                         ),
+                'vers_date2': ColumnDescriptor(
+                                         case_desc=CaseDescriptor(sql_case=func.max(case((self.DATASET.date==upload_date2, VersProgn.name), else_=None)))
+                                         ),
                 **{id: ColumnDescriptor(db_column=col, mapping=mapping) for id, col, mapping in zip(RECORD_ID_COLS, record_id_db_columns, record_id_mappings)},
             }
             wide_yearly_data_cte = create_simple_query(db=db, base_table=self.DATASET, columns=WIDE_YEARLY_DATA_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False)
             wide_yearly_data_cte = wide_yearly_data_cte.group_by(FedState.name, Regions.name, Contragent.name, self.DATASET.year, *record_id_db_columns)
             wide_yearly_data_cte = wide_yearly_data_cte.cte('wide_yearly_data')
 
+            # "vers изменилась" - если хотя бы в одном году значение отличается
+            # между датами; используется и для Таблицы 1 (по объекту), и для
+            # Таблицы 2 (агрегируется дальше, по потребителю).
+            vers_diff = and_(
+                # wide_yearly_data_cte.c.vers_date1.isnot(None),
+                # wide_yearly_data_cte.c.vers_date2.isnot(None),
+                wide_yearly_data_cte.c.vers_date1 != wide_yearly_data_cte.c.vers_date2
+            )
+            vers_changed_expr = func.bool_or(vers_diff)
+            vers_case_desc = CaseDescriptor(sql_case=case(
+                (vers_changed_expr, func.concat(
+                    'изменение значения с ', #! склонения
+                    func.min(case((vers_diff, wide_yearly_data_cte.c.vers_date1), else_=None)),
+                    ' на ',
+                    func.min(case((vers_diff, wide_yearly_data_cte.c.vers_date2), else_=None))
+                )),
+                else_=cast(func.min(func.coalesce(wide_yearly_data_cte.c.vers_date1, wide_yearly_data_cte.c.vers_date2)), Text)
+            ))
+
             # Таблица 2: id = (fo, region, potr)
             TABLE_2_DATA_COLS = {
-                'fo': ColumnDescriptor(db_column=yearly_data_cte.c.fo, excel_title='Федеральный округ', is_filter=True),
-                'region': ColumnDescriptor(db_column=yearly_data_cte.c.region, excel_title='Регион', is_filter=True),
+                'fo': ColumnDescriptor(db_column=wide_yearly_data_cte.c.fo, excel_title='Федеральный округ', is_filter=True),
+                'region': ColumnDescriptor(db_column=wide_yearly_data_cte.c.region, excel_title='Регион', is_filter=True),
                 'potr': ColumnDescriptor(
                     aggr_func=func.max,
                     case_desc=CaseDescriptor(sql_case=case(
-                        (version_info_cte.c.potr_is_new.is_(True), func.concat('*', yearly_data_cte.c.potr)),
-                        else_=yearly_data_cte.c.potr
+                        (version_info_cte.c.potr_is_new.is_(True), func.concat('*', wide_yearly_data_cte.c.potr)),
+                        else_=wide_yearly_data_cte.c.potr
                     )),
                     excel_title='Потребитель'),
             }
             TABLE_2_YEARS_COLS = {}
             for year in range(year1, year2+1):
                 TABLE_2_YEARS_COLS[str(year)] = ColumnDescriptor(
-                                    aggr_func=func.max,
-                                    case_desc=CaseDescriptor(sql_case = case((yearly_data_cte.c.year == year, yearly_data_cte.c.summ), else_=None)),
+                                    case_desc=CaseDescriptor(sql_case = func.sum(case((wide_yearly_data_cte.c.year == year, wide_yearly_data_cte.c.summ), else_=None))),
                                     excel_title=f'{year}',
                                     template_col_id='year'
                                   )
             TABLE_2_DATA_COLS.update(TABLE_2_YEARS_COLS)
+            TABLE_2_DATA_COLS['vers'] = ColumnDescriptor(excel_title='Вероятность реализации проекта', is_filter=True, case_desc=vers_case_desc)
 
-            vers_col_desc = modify_optional_column(cte=version_info_cte, id='vers', col_desc=TABLE_1_OPTIONAL_COLS['vers'])
-            TABLE_2_DATA_COLS['vers'] = vers_col_desc
-
-            # Таблица 1: id = (fo, region, potr, <все опциональные кроме vers>)
+            # Таблица 1: id = (fo, region, potr, <все опциональные>)
             TABLE_1_DATA_COLS = {
                 'fo': ColumnDescriptor(db_column=wide_yearly_data_cte.c.fo, excel_title='Федеральный округ', is_filter=True),
                 'region': ColumnDescriptor(db_column=wide_yearly_data_cte.c.region, excel_title='Регион', is_filter=True),
@@ -304,14 +304,12 @@ class СomparisonDataXls(DatasetInfoMixin):
             for id in RECORD_ID_COLS:
                 TABLE_1_OPTIONAL_COLS[id] = ColumnDescriptor(
                     aggr_func=func.max,
-                    db_column=getattr(record_info_cte.c, id),
+                    db_column=getattr(wide_yearly_data_cte.c, id),
                     excel_title=TABLE_1_OPTIONAL_COLS[id].excel_title,
                 )
 
             TABLE_1_DATA_COLS.update(TABLE_1_YEARS_COLS)
-            TABLE_1_DATA_COLS['vers'] = vers_col_desc
-
-            TABLE_1_OPTIONAL_COLS.pop('vers')
+            TABLE_1_DATA_COLS['vers'] = ColumnDescriptor(excel_title='Вероятность реализации проекта', is_filter=True, case_desc=vers_case_desc)
 
             ALL_TABLE_1_COLS = copy(TABLE_1_DATA_COLS)
             ALL_TABLE_1_COLS.update(TABLE_1_OPTIONAL_COLS)
@@ -322,27 +320,21 @@ class СomparisonDataXls(DatasetInfoMixin):
             
             data_2_query = create_simple_query(db=db, base_table=self.DATASET, columns=TABLE_2_DATA_COLS, 
                                                join_cols_dict=self.JOIN_COLS, isouter=True, 
-                                               select_from=yearly_data_cte)
+                                               select_from=wide_yearly_data_cte)
             
-            data_1_query = data_1_query.join(record_info_cte,
-                            and_(*[getattr(wide_yearly_data_cte.c, id).is_not_distinct_from(getattr(record_info_cte.c, id))
-                                   for id in ['fo', 'region', 'potr'] + RECORD_ID_COLS]))
-
-            data_1_query = data_1_query.join(version_info_cte, 
+            data_1_query = data_1_query.join(version_info_cte,
                             and_(wide_yearly_data_cte.c.fo == version_info_cte.c.fo, 
                                 wide_yearly_data_cte.c.region == version_info_cte.c.region, 
                                 wide_yearly_data_cte.c.potr == version_info_cte.c.potr))
 
             data_2_query = data_2_query.join(version_info_cte, 
-                            and_(yearly_data_cte.c.fo == version_info_cte.c.fo, 
-                                yearly_data_cte.c.region == version_info_cte.c.region, 
-                                yearly_data_cte.c.potr == version_info_cte.c.potr)).filter(getattr(version_info_cte.c, 'vers_count', 0) > 1) 
+                            and_(wide_yearly_data_cte.c.fo == version_info_cte.c.fo, 
+                                wide_yearly_data_cte.c.region == version_info_cte.c.region, 
+                                wide_yearly_data_cte.c.potr == version_info_cte.c.potr))
             
             data_filters_common = []
             if vers is not None:
-                data_filters_common.append(func.coalesce(version_info_cte.c.vers_date1, version_info_cte.c.vers_date2) == vers)
-
-            data_1_query = data_1_query.filter(record_info_cte.c.potr_is_new.is_(True))
+                data_filters_common.append(or_(wide_yearly_data_cte.c.vers_date1 == vers, wide_yearly_data_cte.c.vers_date2 == vers))
 
             data_filters_1 = list(data_filters_common)
             data_filters_2 = list(data_filters_common)
@@ -360,10 +352,26 @@ class СomparisonDataXls(DatasetInfoMixin):
                                                 wide_yearly_data_cte.c.region,
                                                 wide_yearly_data_cte.c.potr,
                                                 *[getattr(wide_yearly_data_cte.c, id) for id in RECORD_ID_COLS])
-            data_2_query = data_2_query.group_by(yearly_data_cte.c.fo,
-                                                yearly_data_cte.c.region,
-                                                yearly_data_cte.c.potr)
-            
+            data_2_query = data_2_query.group_by(wide_yearly_data_cte.c.fo,
+                                                wide_yearly_data_cte.c.region,
+                                                wide_yearly_data_cte.c.potr)
+
+            # Запись попадает в Таблицу 1, если хотя бы за один год (в диапазоне
+            # year1..year2) объём отличается между датами, либо изменилась vers
+            # (в любом из годов).
+            data_1_query = data_1_query.having(or_(
+                func.bool_or(and_(
+                    wide_yearly_data_cte.c.year >= year1,
+                    wide_yearly_data_cte.c.year <= year2,
+                    wide_yearly_data_cte.c.summ.isnot(None),
+                    wide_yearly_data_cte.c.summ != 0
+                )),
+                vers_changed_expr
+            ))
+            # Таблица 2: потребитель попадает в неё, если vers изменилась хотя бы
+            # у одного его объекта в любом году.
+            data_2_query = data_2_query.having(vers_changed_expr)
+
             data_1_query = data_1_query.order_by(
                             wide_yearly_data_cte.c.fo,
                             wide_yearly_data_cte.c.region,
@@ -371,9 +379,9 @@ class СomparisonDataXls(DatasetInfoMixin):
                             *[getattr(wide_yearly_data_cte.c, id) for id in RECORD_ID_COLS]
                         )
             data_2_query = data_2_query.order_by(
-                            yearly_data_cte.c.fo,
-                            yearly_data_cte.c.region,
-                            yearly_data_cte.c.potr
+                            wide_yearly_data_cte.c.fo,
+                            wide_yearly_data_cte.c.region,
+                            wide_yearly_data_cte.c.potr
                         )
             data1 : List[RowMapping] = db.execute(data_1_query).mappings().all()
             data2 : List[RowMapping] = db.execute(data_2_query).mappings().all()

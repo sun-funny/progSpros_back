@@ -3,7 +3,7 @@ from datetime import date, datetime
 from enum import Enum
 import itertools
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from sqlalchemy import Column, desc, func, and_, case, CTE, literal, or_, select, Case, text, Text
+from sqlalchemy import Column, desc, func, and_, case, CTE, literal, or_, select, Case, Text
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql.expression import cast
 from sqlalchemy.orm import aliased, scoped_session, Query
@@ -766,115 +766,28 @@ def create_simple_query(db: scoped_session, base_table, columns: Dict[str, Colum
 ###### Сравнительные таблицы
 
 ### Запросы для выгрузки данных Таблицы 1 (сравнительной)
-def modify_optional_column(cte: CTE, id: str, col_desc: ColumnDescriptor):
-    col_desc.case_desc=CaseDescriptor(sql_case = case(
-                                (func.min(getattr(cte.c, f'{id}_count', 0)) > 1,
-                                func.concat(
-                                    'изменение значения с ', #! склонения
-                                    func.min(getattr(cte.c, f'{id}_date1')),
-                                    ' на ',
-                                    func.min(getattr(cte.c, f'{id}_date2')))
-                                )
-                                ,
-                                else_=cast(func.min(func.coalesce(getattr(cte.c, f'{id}_date1'), getattr(cte.c, f'{id}_date2'))), Text)))
-    col_desc.db_column=None
-
-    return col_desc
-                   
-
-def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, optional_cols: Dict[str, ColumnDescriptor], identity_cols: Optional[List[str]] = None, cte_name: str = 'version_info') -> CTE:
-    identity_cols = identity_cols or []
-    optional_cols_versions = []
-
-    for id, desc in optional_cols.items():
-        if desc.mapping is not None:
-            when_clauses_1 = []
-            when_clauses_2 = []
-            for key, value in desc.mapping.items():
-                when_clauses_1.append((cast(getattr(date1_cte.c, id), Text) == key, literal(value)))
-                when_clauses_2.append((cast(getattr(date2_cte.c, id), Text) == key, literal(value)))
-            column_1 = case(*when_clauses_1, else_=cast(getattr(date1_cte.c, id), Text))
-            column_2 = case(*when_clauses_2, else_=cast(getattr(date2_cte.c, id), Text))
-        else:
-            column_1 = getattr(date1_cte.c, id)
-            column_2 = getattr(date2_cte.c, id)
-        optional_cols_versions.append(column_1.label(f'{id}_date1'))
-        optional_cols_versions.append(column_2.label(f'{id}_date2'))
-        optional_cols_versions.append(case(
-                                        (
-                                            and_(
-                                                getattr(date1_cte.c, id).isnot(None),
-                                                getattr(date2_cte.c, id).isnot(None),
-                                                getattr(date1_cte.c, id) != getattr(date2_cte.c, id)
-                                            ),
-                                            2
-                                        )
-                                    ,
-                                    else_=1
-                                ).label(f'{id}_count'))
-
-    join_conditions = [
-        date1_cte.c.fo == date2_cte.c.fo,
-        date1_cte.c.region == date2_cte.c.region,
-        date1_cte.c.potr == date2_cte.c.potr,
-    ]
-    identity_selects = []
-    for id in identity_cols:
-        join_conditions.append(getattr(date1_cte.c, id).is_not_distinct_from(getattr(date2_cte.c, id)))
-        identity_selects.append(func.coalesce(getattr(date1_cte.c, id), getattr(date2_cte.c, id)).label(id))
-
+def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE) -> CTE:
+    """Определяет, является ли потребитель (fo, region, potr) целиком новым:
+    появился на date2 и отсутствовал на date1."""
     version_info = db.query().with_entities(
         func.coalesce(date1_cte.c.fo, date2_cte.c.fo).label('fo'),
         func.coalesce(date1_cte.c.region, date2_cte.c.region).label('region'),
         func.coalesce(date1_cte.c.potr, date2_cte.c.potr).label('potr'),
         and_(date1_cte.c.potr.is_(None), date2_cte.c.potr.isnot(None)).label('potr_is_new'),
-        *identity_selects,
-        *optional_cols_versions,
     ).select_from(
         date1_cte.outerjoin(
             date2_cte,
-            and_(*join_conditions),
+            and_(
+                date1_cte.c.fo == date2_cte.c.fo,
+                date1_cte.c.region == date2_cte.c.region,
+                date1_cte.c.potr == date2_cte.c.potr
+            ),
             full=True
         )
     )
-    version_info = version_info.cte(cte_name)
+    version_info = version_info.cte('version_info')
 
     return version_info
-
-def check_optional_cols(db: scoped_session, base_query: Query, optional_cols: Dict[str, ColumnDescriptor], pattern: Optional[str] = None) -> List[str]:
-    if hasattr(base_query, 'statement'):
-        compiled = base_query.statement.compile(
-            dialect=db.bind.dialect,
-            compile_kwargs={"literal_binds": True}
-        )
-    elif hasattr(base_query, 'compile'):
-        compiled = base_query.compile(
-            dialect=db.bind.dialect,
-            compile_kwargs={"literal_binds": True}
-        )
-    else:
-        compiled = base_query
-
-    sql_string = str(compiled)
-
-    pattern_matcher = lambda col : f'subquery.{col}::text'
-    if pattern is not None:
-        pattern_matcher = lambda col : f'CASE WHEN subquery.{col}::text ~ \'{pattern}\' THEN 1 END'
-
-    checks = [f"COUNT({pattern_matcher(col)}) > 0 AS {col}_has_data" for col in optional_cols.keys()]
-    
-    query = f"""
-        WITH subquery AS (
-            {sql_string}
-        )
-        SELECT 
-            {', '.join(checks)}
-        FROM subquery
-    """
-    result = db.execute(text(query)).fetchone()
-    # print('result', result)
-    return [col for idx, col in enumerate(optional_cols.keys()) if result[idx]]
-
 
 ######### Пояснительная записка
 def reverse_mapper_list(mapper: Dict) -> Dict:

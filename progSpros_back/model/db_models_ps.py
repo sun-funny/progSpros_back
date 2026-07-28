@@ -187,12 +187,18 @@ class GroupRegions(Base):
     __table_args__ = {'schema': 'public'}
     id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True)
+
     # regions = relationship('Regions', secondary=group_regions_relation, back_populates='tab_group_region_d314')
 
 
     # id_region = Column(Integer)
     # id_group_region = Column(Integer)
     # date_added = Column(DateTime(timezone=False))
+class GenSchema(Base):
+    __tablename__ = "tab_gen_schema_d314"
+    __table_args__ = {'schema': 'public'}
+    id = Column(Integer, primary_key=True)
+    name = Column(Text, unique=True)
 
 # Определить эталонные модели и их атрибуты. Поля можно задать без _ids
 reference_models = {
