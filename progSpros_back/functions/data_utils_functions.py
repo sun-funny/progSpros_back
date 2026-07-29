@@ -127,8 +127,8 @@ def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict)
         indicators = [start_gaz_year_str, pg_str, contract_str, tu_str] if not does_exist else [pg_str]
         indicators_str = ', '.join(filter(lambda x: x is not None and x is not False, indicators))
         contragents_parts.append(f'{data.get("name")} {format_float(data.get("summs", (None, None))[1])} млн куб м ({indicators_str})')
-    nl = ';<w:br/>'
-    result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:<w:br/><w:br/> {nl.join(contragents_parts)}'
+    nl = ';\n'
+    result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:\n\n {nl.join(contragents_parts)}'
 
 
 def _get_summs_dict(result_dict: Dict, detalisations_data: Dict, contragents_data: Optional[Dict] = None):
@@ -157,7 +157,7 @@ def get_summary_docx_dict(data: Dict, add_dict: Optional[Dict] = None) -> Dict:
     sum_dict['title_regions'] = []
     for fo_name, regions_info in data.get('regions_info', {}).items():
         sum_dict['title_regions'].append(f'{fo_name}: {", ".join(list(regions_info.keys()))};')
-    sum_dict['title_regions'] = '<w:br/>'.join(sum_dict['title_regions'])
+    sum_dict['title_regions'] = '\n'.join(sum_dict['title_regions'])
 
     _get_summs_dict(sum_dict, data.get('summary', {}))
 

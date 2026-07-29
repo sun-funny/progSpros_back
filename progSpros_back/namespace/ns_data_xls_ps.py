@@ -472,10 +472,14 @@ class IndustryNote(DatasetInfoMixin):
             sum_dict = get_summary_docx_dict(data, base_dict)
 
             base_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Заголовок.docx', **sum_dict)
+
+            note_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Примечание.docx')
+            DocxBuilder.copy_headers_footers(base_doc, note_doc)
+
             if sum(len(regions_info) for _, regions_info in data['regions_info'].items()) > 1:
                 sum_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная Записка Всего.docx', **sum_dict)
                 DocxBuilder.join_docs(base_doc, sum_doc)
-            
+
             regions_info = data.get('regions_info', {})
 
             regions_processed = 0
@@ -483,23 +487,23 @@ class IndustryNote(DatasetInfoMixin):
                 for region_name, region_info in regions_dict.items():
                     # last_paragraph = base_doc.paragraphs[-1].runs[-1]
                     # last_paragraph.add_break(WD_BREAK.PAGE)
-                    
+
                     base_dict['region_name'] = region_name
                     region_dict = get_region_docx_dict(region_info, base_dict)
                     region_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Регион.docx', **region_dict)
 
                     DocxBuilder.join_docs(base_doc, region_doc)
-                    
+
                     regions_processed += 1
 
-            DocxBuilder.join_docs(base_doc, DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Примечание.docx'))
+            DocxBuilder.join_docs(base_doc, note_doc)
             base_doc = DocxBuilder.save_file(base_doc)
 
             return send_file(
                 base_doc,
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 as_attachment=True,
-                download_name="Пояснительная записка",
+                download_name="Пояснительная записка.docx",
                 max_age=0,
             )
         except Exception as e:

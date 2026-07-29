@@ -5,6 +5,10 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from dataclasses import dataclass
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
+from docx.opc.constants import CONTENT_TYPE as CT
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.oxml.parser import parse_xml
+from docx.parts.hdrftr import FooterPart, HeaderPart
 from docx.text.run import Run as DocxRun
 from docxcompose.composer import Composer
 from sqlalchemy import Column, Case
@@ -505,7 +509,13 @@ class DocxBuilder(UtilsMixin):
                 elem.getparent().remove(elem)
 
         for section in [doc] + list(doc.sections):
-            sources = [section] if section is doc else [section.header, section.footer]
+            # Обращение к .header/.footer при отсутствующем колонтитуле заставляет
+            # python-docx создать пустой колонтитул (_Header/_Footer._get_or_add_definition
+            # в docx/section.py) — пропускаем такие случаи, иначе у шаблонов без
+            # колонтитулов появляется паразитный пустой колонтитул.
+            sources = [section] if section is doc else [
+                hf for hf in (section.header, section.footer) if hf._has_definition
+            ]
             for src in sources:
                 for p in src.paragraphs:
                     for run in p.runs:
@@ -523,8 +533,12 @@ class DocxBuilder(UtilsMixin):
         paragraphs.extend(self._get_paragraphs_from(self.doc))
 
         for section in self.doc.sections:
-            paragraphs.extend(self._get_paragraphs_from(section.header))
-            paragraphs.extend(self._get_paragraphs_from(section.footer))
+            # .header/.footer auto-vivify an empty definition when none exists
+            # (see the note in _strip_special_chars) - skip templates without one.
+            if section.header._has_definition:
+                paragraphs.extend(self._get_paragraphs_from(section.header))
+            if section.footer._has_definition:
+                paragraphs.extend(self._get_paragraphs_from(section.footer))
 
         return paragraphs
     
@@ -587,7 +601,49 @@ class DocxBuilder(UtilsMixin):
             composer.append(doc)
 
         return base_doc
-    
+
+    @staticmethod
+    def copy_headers_footers(dst_doc: Document, src_doc: Document) -> None:
+        # docxcompose переносит колонтитулы только при склейке многораздельных документов (Composer.fix_header_and_footers).
+        dst_section = dst_doc.sections[0]
+        src_section = src_doc.sections[0]
+        composer = Composer(dst_doc)
+
+        for attr, is_header in (
+            ('header', True), ('first_page_header', True), ('even_page_header', True),
+            ('footer', False), ('first_page_footer', False), ('even_page_footer', False),
+        ):
+            src_hf = getattr(src_section, attr)
+            if not src_hf._has_definition:
+                continue
+
+            dst_hf = getattr(dst_section, attr)
+            if dst_hf._has_definition:
+                dst_hf._drop_definition()
+
+            # add_relationship() (used by docxcompose itself) would wrap the copied
+            # part as a generic opc.Part, which lacks the .element StoryPart needs -
+            # so build a proper Header/FooterPart and copy its own relationships
+            # (e.g. a letterhead image) via add_referenced_parts instead.
+            src_part = src_hf._definition
+            part_cls = HeaderPart if is_header else FooterPart
+            content_type = CT.WML_HEADER if is_header else CT.WML_FOOTER
+            partname_pattern = "/word/header%d.xml" if is_header else "/word/footer%d.xml"
+
+            new_partname = dst_doc.part.package.next_partname(partname_pattern)
+            new_element = parse_xml(src_part.blob)
+            new_part = part_cls(new_partname, content_type, new_element, dst_doc.part.package)
+            composer.add_referenced_parts(src_part, new_part, new_element)
+
+            reltype = RT.HEADER if is_header else RT.FOOTER
+            rid = dst_doc.part.relate_to(new_part, reltype)
+
+            kind = src_hf._hdrftr_index
+            if is_header:
+                dst_section._sectPr.add_headerReference(kind, rid)
+            else:
+                dst_section._sectPr.add_footerReference(kind, rid)
+
     @staticmethod
     def save_file(doc: Document) -> BytesIO:
         file_stream = BytesIO()
