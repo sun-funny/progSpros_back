@@ -481,7 +481,9 @@ class DocxBuilder(UtilsMixin):
     @staticmethod
     def _rm_nonbreaks_hyphens(s: str) -> Optional[str]:
         if s is None: return None
-        return s.replace('\u00a0', ' ').replace('\u00ad', '')
+        s = s.replace('\u00a0', ' ').replace('\u00ad', '')
+        s = s.replace('\r\n', '\n').replace('\r', '\n').replace('\\n', '\n')
+        return s
 
     def fill_docx_template(self, template_name: str, **kwargs) -> Document:
         self.doc = Document(self._get_template_path(template_name))

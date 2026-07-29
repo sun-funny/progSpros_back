@@ -126,7 +126,8 @@ def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict)
         start_gaz_year_str = f'начало поставки {str(start_gaz_year)} год' if ((start_gaz_year:=data.get('start_gaz_year', False)) and is_start_gaz_year_needed) else None
         indicators = [start_gaz_year_str, pg_str, contract_str, tu_str] if not does_exist else [pg_str]
         indicators_str = ', '.join(filter(lambda x: x is not None and x is not False, indicators))
-        contragents_parts.append(f'{data.get("name")} {format_float(data.get("summs", (None, None))[1])} млн куб м ({indicators_str})')
+        name = data.get("name").strip().replace('\n', ' ').replace('\t', ' ')
+        contragents_parts.append(f'{name} {format_float(data.get("summs", (None, None))[1])} млн куб м ({indicators_str})')
     nl = ';\n'
     result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:\n\n {nl.join(contragents_parts)}'
 
