@@ -278,7 +278,7 @@ def add_region_detalization(info: Dict, data: List[Dict]):
         fo_name = row.get('fo_name')
         region_name = row.get('region_name')
         vers_name = row.get('version_name')
-        summs = (row.get('summ_start', 0), row.get('summ_end', 0))
+        summs = (row.get('summ_start') or 0, row.get('summ_end') or 0)
         
         if not all([fo_name, region_name, vers_name]):
             continue

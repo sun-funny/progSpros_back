@@ -194,17 +194,21 @@ class СomparisonDataXls(DatasetInfoMixin):
             record_id_mappings = [TABLE_1_OPTIONAL_COLS[id].mapping for id in RECORD_ID_COLS]
 
             # Узкая пара CTE только для определения "потребитель целиком новый"
-            # (появился на date2, отсутствовал на date1) — используется для
-            # маркера "*" в обеих таблицах.
-            NARROW_DATE_CTE_DATA_COLS = {
+            # (появился на date2, отсутствовал на date1) - используется для
+            # маркера "*" во второй таблицах.
+            NARROW_ID_DATE_CTE_DATA_COLS = {
                 'fo': ColumnDescriptor(db_column=FedState.name),
                 'region': ColumnDescriptor(db_column=Regions.name),
                 'potr': ColumnDescriptor(db_column=Contragent.name),
             }
-            date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=NARROW_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
-            date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=NARROW_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
+            # полный id для таблицы 1
+            WIDE_ID_DATE_CTE_DATA_COLS = copy(NARROW_ID_DATE_CTE_DATA_COLS)
+            WIDE_ID_DATE_CTE_DATA_COLS.update(TABLE_1_OPTIONAL_COLS)
 
-            version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte)
+            date1_cte = create_simple_query(db=db, base_table=self.DATASET, columns=WIDE_ID_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date1).distinct(FedState.name, Regions.name, Contragent.name).cte('date1_data')
+            date2_cte = create_simple_query(db=db, base_table=self.DATASET, columns=WIDE_ID_DATE_CTE_DATA_COLS, join_cols_dict=self.JOIN_COLS, distinct=False, isouter=False).filter(self.DATASET.date==upload_date2).distinct(FedState.name, Regions.name, Contragent.name).cte('date2_data')
+
+            version_info_cte = get_version_info_cte(db=db, date1_cte=date1_cte, date2_cte=date2_cte, id_cols=WIDE_ID_DATE_CTE_DATA_COLS)
 
             # vers может меняться из года в год для одного и того же объекта, поэтому
             # сравнивается погодично, на уровне (fo, region, potr, <13 атрибутов>, year),
@@ -244,7 +248,7 @@ class СomparisonDataXls(DatasetInfoMixin):
             vers_changed_expr = func.bool_or(vers_diff)
             vers_case_desc = CaseDescriptor(sql_case=case(
                 (vers_changed_expr, func.concat(
-                    'изменение значения с ', #! склонения
+                    'изменение значения с ',
                     func.min(case((vers_diff, wide_yearly_data_cte.c.vers_date1), else_=None)),
                     ' на ',
                     func.min(case((vers_diff, wide_yearly_data_cte.c.vers_date2), else_=None))
@@ -282,7 +286,7 @@ class СomparisonDataXls(DatasetInfoMixin):
                     aggr_func=func.max,
                     case_desc=CaseDescriptor(sql_case=case(
                         # Помечаем "*" (и подсвечиваем всю строку) только когда сам
-                        # потребитель целиком новый — не когда просто появилась новая
+                        # потребитель целиком новый - не когда просто появилась новая
                         # запись (комбинация атрибутов) у уже существующего потребителя.
                         (version_info_cte.c.potr_is_new.is_(True), func.concat('*', wide_yearly_data_cte.c.potr)),
                         else_=wide_yearly_data_cte.c.potr

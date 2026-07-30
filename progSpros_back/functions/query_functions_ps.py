@@ -766,24 +766,26 @@ def create_simple_query(db: scoped_session, base_table, columns: Dict[str, Colum
 ###### Сравнительные таблицы
 
 ### Запросы для выгрузки данных Таблицы 1 (сравнительной)
-def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE) -> CTE:
-    """Определяет, является ли потребитель (fo, region, potr) целиком новым:
+def get_version_info_cte(db: scoped_session, date1_cte: CTE, date2_cte: CTE, id_cols: Dict[str, CaseDescriptor]) -> CTE:
+    """Определяет, является ли потребитель (id_cols) целиком новым:
     появился на date2 и отсутствовал на date1."""
+    with_entities_list = [func.coalesce(
+        getattr(date1_cte.c, id_col), 
+        getattr(date2_cte.c, id_col)).label(id_col) for id_col in id_cols.keys()]
+    join_cond = and_(*[
+        getattr(date1_cte.c, col) == getattr(date2_cte.c, col)
+        for col in id_cols.keys()
+    ])
+    is_new = and_(*[
+        getattr(date1_cte.c, col).is_(None)
+        for col in id_cols.keys()
+    ]).label('potr_is_new')
+
     version_info = db.query().with_entities(
-        func.coalesce(date1_cte.c.fo, date2_cte.c.fo).label('fo'),
-        func.coalesce(date1_cte.c.region, date2_cte.c.region).label('region'),
-        func.coalesce(date1_cte.c.potr, date2_cte.c.potr).label('potr'),
-        and_(date1_cte.c.potr.is_(None), date2_cte.c.potr.isnot(None)).label('potr_is_new'),
+        *with_entities_list,
+        is_new,
     ).select_from(
-        date1_cte.outerjoin(
-            date2_cte,
-            and_(
-                date1_cte.c.fo == date2_cte.c.fo,
-                date1_cte.c.region == date2_cte.c.region,
-                date1_cte.c.potr == date2_cte.c.potr
-            ),
-            full=True
-        )
+        date1_cte.outerjoin(date2_cte, join_cond, full=True)
     )
     version_info = version_info.cte('version_info')
 
@@ -893,12 +895,16 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         )
     
 
-    ranking_q = db.query(
+    ranked_contragents_subq = db.query(
         PSDATA.tab_region_d314_ids.label('region_id'),
         mapped_name_col.label('version_name'),
         id_col.label('version_id'),
         PSDATA.tab_contragent_d314_ids.label('contragent_id'),
-        func.sum(PSDATA.summ).label('total_summ')
+        func.sum(PSDATA.summ).label('total_summ'),
+        func.row_number().over(
+            partition_by=(PSDATA.tab_region_d314_ids, mapped_name_col),
+            order_by=desc(func.sum(PSDATA.summ))
+        ).label('rn')
     ).select_from(
         PSDATA
     ).join(
@@ -910,18 +916,22 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
     ).join(
         FedState, FedState.id == Regions.tab_fo_d314_ids
     ).filter(
-        PSDATA.year == end_year,  # ранжирование по end году 
+        PSDATA.year == end_year,  # ранжирование по end году
         PSDATA.tab_contragent_d314_ids.not_in([44915, 44502, 46048, 44484]), # 44484 - 'действующие потребители'
         *base_filters
     ).group_by(
         PSDATA.tab_region_d314_ids,
         mapped_name_col, id_col,
         PSDATA.tab_contragent_d314_ids
+    ).subquery('ranked_contragents')
+
+    ranking_q = db.query(ranked_contragents_subq).filter(
+        ranked_contragents_subq.c.rn <= 3
     ).order_by(
-        PSDATA.tab_region_d314_ids,
-        mapped_name_col,
-        desc(func.sum(PSDATA.summ))
-    ).limit(3).subquery('rank')
+        ranked_contragents_subq.c.region_id,
+        ranked_contragents_subq.c.version_name,
+        desc(ranked_contragents_subq.c.total_summ)
+    ).subquery('rank')
     
     
     top3_query = db.query(

@@ -129,7 +129,7 @@ def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict)
         name = data.get("name").strip().replace('\n', ' ').replace('\t', ' ')
         contragents_parts.append(f'{name} {format_float(data.get("summs", (None, None))[1])} млн куб м ({indicators_str})')
     nl = ';\n'
-    result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:\n\n {nl.join(contragents_parts)}'
+    result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:\n\n{nl.join(contragents_parts)}'
 
 
 def _get_summs_dict(result_dict: Dict, detalisations_data: Dict, contragents_data: Optional[Dict] = None):

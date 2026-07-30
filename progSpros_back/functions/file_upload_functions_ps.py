@@ -513,7 +513,7 @@ class DocxBuilder(UtilsMixin):
         for section in [doc] + list(doc.sections):
             # Обращение к .header/.footer при отсутствующем колонтитуле заставляет
             # python-docx создать пустой колонтитул (_Header/_Footer._get_or_add_definition
-            # в docx/section.py) — пропускаем такие случаи, иначе у шаблонов без
+            # в docx/section.py) - пропускаем такие случаи, иначе у шаблонов без
             # колонтитулов появляется паразитный пустой колонтитул.
             sources = [section] if section is doc else [
                 hf for hf in (section.header, section.footer) if hf._has_definition
