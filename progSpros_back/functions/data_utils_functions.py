@@ -26,7 +26,10 @@ def format_float(num: float) -> str:
             break
     num_str = f"{(formatted_num):,.{max(2, i+1) if found_num else 2}f}" # в миллионах
     num_str = num_str.replace(',', ' ').replace('.', ',')
-
+    if ',' in num_str:
+        num_str = num_str.rstrip('0')#.rstrip(',')
+    if num_str[-1] == ',':
+        num_str += '00'
     return num_str
 def _generate_comparison_string(result_dict: dict, prefix_str: str):
     is_in_future = (prefix_str in {'max', 'promised'})
@@ -112,10 +115,9 @@ def _generate_comparison_string(result_dict: dict, prefix_str: str):
 
 
 def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict):
-    if contragents_data is None:
-        # result_dict[f'{prefix_str}_comparison'] += '.'
+    if not contragents_data:
         return
-    
+
     is_start_gaz_year_needed = (prefix_str in {'expect', 'potential'})
     does_exist = prefix_str == 'exist'
     contragents_parts = []
@@ -126,8 +128,10 @@ def _add_contragents(result_dict: Dict, prefix_str: str, contragents_data: Dict)
         start_gaz_year_str = f'начало поставки {str(start_gaz_year)} год' if ((start_gaz_year:=data.get('start_gaz_year', False)) and is_start_gaz_year_needed) else None
         indicators = [start_gaz_year_str, pg_str, contract_str, tu_str] if not does_exist else [pg_str]
         indicators_str = ', '.join(filter(lambda x: x is not None and x is not False, indicators))
-        name = data.get("name").strip().replace('\n', ' ').replace('\t', ' ')
+        name = (data.get("name") or '').strip().replace('\n', ' ').replace('\t', ' ')
         contragents_parts.append(f'{name} {format_float(data.get("summs", (None, None))[1])} млн куб м ({indicators_str})')
+    if not contragents_parts:
+        return
     nl = ';\n'
     result_dict[f'{prefix_str}_comparison'] += f' в том числе крупные потребители:\n\n{nl.join(contragents_parts)}'
 

@@ -243,6 +243,8 @@ class СomparisonDataXls(DatasetInfoMixin):
             vers_diff = and_(
                 # wide_yearly_data_cte.c.vers_date1.isnot(None),
                 # wide_yearly_data_cte.c.vers_date2.isnot(None),
+                wide_yearly_data_cte.c.year >= year1,
+                wide_yearly_data_cte.c.year <= year2,
                 wide_yearly_data_cte.c.vers_date1 != wide_yearly_data_cte.c.vers_date2
             )
             vers_changed_expr = func.bool_or(vers_diff)
@@ -276,7 +278,7 @@ class СomparisonDataXls(DatasetInfoMixin):
                                     template_col_id='year'
                                   )
             TABLE_2_DATA_COLS.update(TABLE_2_YEARS_COLS)
-            TABLE_2_DATA_COLS['vers'] = ColumnDescriptor(excel_title='Вероятность реализации проекта', is_filter=True, case_desc=vers_case_desc)
+            # TABLE_2_DATA_COLS['vers'] = ColumnDescriptor(excel_title='Вероятность реализации проекта', is_filter=True, case_desc=vers_case_desc)
 
             # Таблица 1: id = (fo, region, potr, <все опциональные>)
             TABLE_1_DATA_COLS = {
@@ -425,7 +427,7 @@ note_parser.add_argument('start_year', type=int, help='Год начало', req
 note_parser.add_argument('end_year', type=int, help='Год конец', required=True)
 note_parser.add_argument('fo', type=str, help='Федеральный округ')
 note_parser.add_argument('regions', type=str, help='Регионы, разделённые запятыми')
-note_parser.add_argument('industry', type=str, help='Отрасль экономики', required=True)
+note_parser.add_argument('industry', type=str, help='Отрасли экономики, разделенные запятыми')
 note_parser.add_argument('date', type=str, help='Дата выгрузки', required=True)
 
 
@@ -441,7 +443,7 @@ class IndustryNote(DatasetInfoMixin):
             - end_year: int - год конца 
             - fo: str - [опционально] список ФО
             - regions: str - [опционально] список регионов
-            - industry: str -  отрасль экономики
+            - industry: str -  отрасли экономики
             - date: str - дата выгрузки
         """
 
@@ -455,12 +457,12 @@ class IndustryNote(DatasetInfoMixin):
 
             fos : List[str] = None if not (fos:=args.get('fo', False)) else fos.split(',')
             regions : List[str] = None if not (regions:=args.get('regions', False)) else regions.split(',')
-            industry = args.get('industry', None)
+            industries : List[str] = None if not (industries:=args.get('industry', False)) else industries.split(',')
             date = args.get('date', None)
             if date:
                 date = datetime.strptime(date, '%d.%m.%Y').date()
 
-            (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, fos=fos, regions=regions, industry=industry, date=date)
+            (main_query, top3_query) = get_note_query(db=db, start_year=start_year, end_year=end_year, fos=fos, regions=regions, industries=industries, date=date)
             data = db.execute(main_query).mappings().all()
             # print('-\n'*15, data)
             data = combine_note_data_sums(data)
@@ -468,10 +470,18 @@ class IndustryNote(DatasetInfoMixin):
             # print(db.execute(top3_query).mappings().all())
             add_region_detalization(data, db.execute(top3_query).mappings().all())
 
+            if industries is None:
+                industry_name = f'по всем категориям'
+            else:
+                industries = [str(industry).lower() for industry in industries]
+                if len(industries) == 1:
+                    industry_name = f'по категории {industries[0]}'
+                else:
+                    industry_name = f'по категориям {", ".join(industries)}'
             base_dict = {
                 'year_start': start_year,
                 'year_end': end_year,
-                'industry_name': str(industry).lower()
+                'industry_name': industry_name
             }
             sum_dict = get_summary_docx_dict(data, base_dict)
 
@@ -479,7 +489,15 @@ class IndustryNote(DatasetInfoMixin):
 
             note_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная записка Примечание.docx')
             DocxBuilder.copy_headers_footers(base_doc, note_doc)
-
+            if industries is None:
+                industry_name = f'всех категорий'
+            else:
+                industries = [str(industry).lower() for industry in industries]
+                if len(industries) == 1:
+                    industry_name = f'категории {industries[0]}'
+                else:
+                    industry_name = f'категорий {", ".join(industries[0:2])}{" и др." if len(industries) > 2 else ""}'
+            sum_dict['industry_name'] = industry_name
             if sum(len(regions_info) for _, regions_info in data['regions_info'].items()) > 1:
                 sum_doc = DocxBuilder().fill_docx_template('Шаблон Пояснительная Записка Всего.docx', **sum_dict)
                 DocxBuilder.join_docs(base_doc, sum_doc)

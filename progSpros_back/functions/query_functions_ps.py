@@ -814,7 +814,7 @@ def ensure_list(items) -> List[Any]:
     else:
         items_list = [items]
     return items_list
-def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List[str], regions: List[str], industry: str, date) -> Tuple[Query, Query]:
+def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List[str], regions: List[str], industries: List[str], date) -> Tuple[Query, Query]:
     VERSION_MAPPER = reverse_mapper_list(copy(version_leveled_mappings['ver_real_level1']))
     
     filters_unions = _get_map_table_subq(VersProgn.full_name, VERSION_MAPPER)
@@ -840,9 +840,12 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
     cols = list(version_mapping_subq.c)
     id_col = cols[0]
     mapped_name_col = cols[2] 
-    base_filters = [Otrasl.name == industry,
+    base_filters = [
                     PSDATA.year.in_([start_year, end_year]),
                     PSDATA.date == date]
+    if industries and len(industries) > 0:
+        industries_list = ensure_list(industries)
+        base_filters.append(Otrasl.name.in_(industries_list))
     if fos and len(fos) > 0:
         fos_list = ensure_list(fos)
         base_filters.append(FedState.name.in_(fos_list))
@@ -895,10 +898,11 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         )
     
 
+    # группируем только по (region, mapped_name, contragent) — без version_id,
+    # чтобы одна и та же версия под разными исходными id не давала дубли в топ-3
     ranked_contragents_subq = db.query(
         PSDATA.tab_region_d314_ids.label('region_id'),
         mapped_name_col.label('version_name'),
-        id_col.label('version_id'),
         PSDATA.tab_contragent_d314_ids.label('contragent_id'),
         func.sum(PSDATA.summ).label('total_summ'),
         func.row_number().over(
@@ -921,7 +925,7 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         *base_filters
     ).group_by(
         PSDATA.tab_region_d314_ids,
-        mapped_name_col, id_col,
+        mapped_name_col,
         PSDATA.tab_contragent_d314_ids
     ).subquery('ranked_contragents')
 
@@ -932,16 +936,28 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         ranked_contragents_subq.c.version_name,
         desc(ranked_contragents_subq.c.total_summ)
     ).subquery('rank')
-    
-    
+
+    # отдельный алиас version_mapping для top3, чтобы джойнить PSDATA по mapped_name,
+    # а не по конкретному version_id — иначе суммы считались бы только для одной версии
+    vm_top3 = version_mapping_subq.alias('vm_top3')
+    vm_top3_cols = list(vm_top3.c)
+    vm_top3_id = vm_top3_cols[0]      # id column
+    vm_top3_mapped = vm_top3_cols[2]  # mapped_name column
+
     top3_query = db.query(
         FedState.short_name.label('fo_name'),
         Regions.name.label('region_name'),
         ranking_q.c.version_name,
         Contragent.name.label('contragent_name'),
-        StGaz.name.label('start_gaz_year'),
-        func.sum(PSDATA.summ).filter(PSDATA.year == start_year).label('summ_start'),
-        func.sum(PSDATA.summ).filter(PSDATA.year == end_year).label('summ_end'),
+        func.max(StGaz.name).label('start_gaz_year'),
+        func.sum(case(
+            (and_(PSDATA.year == start_year, vm_top3_id.isnot(None)), PSDATA.summ),
+            else_=None
+        )).label('summ_start'),
+        func.sum(case(
+            (and_(PSDATA.year == end_year, vm_top3_id.isnot(None)), PSDATA.summ),
+            else_=None
+        )).label('summ_end'),
         func.string_agg(func.distinct(TU.name), ', ').label('tu_list'),
         func.string_agg(func.distinct(PG.name), ', ').label('pg_list'),
         func.string_agg(func.distinct(Dogovor.name), ', ').label('dogovor_list')
@@ -956,10 +972,14 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
     ).outerjoin(
         PSDATA, and_(
             PSDATA.tab_region_d314_ids == ranking_q.c.region_id,
-            PSDATA.tab_ver_real_pr_d314_ids == ranking_q.c.version_id,
             PSDATA.tab_contragent_d314_ids == ranking_q.c.contragent_id,
             PSDATA.date == date,
             PSDATA.year.in_([start_year, end_year])
+        )
+    ).outerjoin(
+        vm_top3, and_(
+            vm_top3_id == PSDATA.tab_ver_real_pr_d314_ids,
+            vm_top3_mapped == ranking_q.c.version_name
         )
     ).outerjoin(
         StGaz, StGaz.id == PSDATA.tab_start_gaz_d314_ids
@@ -973,12 +993,10 @@ def get_note_query(db: scoped_session, start_year: int, end_year: int, fos: List
         FedState.short_name,
         Regions.name,
         ranking_q.c.version_name,
-        ranking_q.c.version_id,
         ranking_q.c.region_id,
         ranking_q.c.contragent_id,
         ranking_q.c.total_summ,
         Contragent.name,
-        StGaz.name
     ).order_by(desc(ranking_q.c.total_summ))
     
 

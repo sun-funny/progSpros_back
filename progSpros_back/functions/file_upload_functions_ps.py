@@ -1,4 +1,5 @@
 from copy import copy, deepcopy
+from decimal import Decimal
 from itertools import chain
 import os
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
@@ -481,17 +482,27 @@ class DocxBuilder(UtilsMixin):
     @staticmethod
     def _rm_nonbreaks_hyphens(s: str) -> Optional[str]:
         if s is None: return None
-        s = s.replace('\u00a0', ' ').replace('\u00ad', '')
+        s = s.replace('\u00a0', ' ')
         s = s.replace('\r\n', '\n').replace('\r', '\n').replace('\\n', '\n')
+        s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
         return s
+    
+    @staticmethod
+    def _format_double_quotes(s: str) -> Optional[str]:
+        text = re.sub(r'"(?=\w)', '«', s)
+        text = text.replace('"', '»')
+        return text
 
     def fill_docx_template(self, template_name: str, **kwargs) -> Document:
         self.doc = Document(self._get_template_path(template_name))
 
         for key, value in kwargs.items():
             placeholder = self.PLACEHOLDER(key)
+            # if isinstance(value, (int, float, Decimal)) and ',' in (value:=str(value)):
+            #     value = value.rstrip('0')
             for p in self._get_all_paragraphs():
-                self._replace_key(p, placeholder, self._rm_nonbreaks_hyphens(str(value)))
+                value_str = self._format_double_quotes(self._format_double_quotes(self._rm_nonbreaks_hyphens(str(value))))
+                self._replace_key(p, placeholder, value_str)
 
         # for p in self._get_all_paragraphs():
         #     self._expand_highlight_markers(p)
@@ -554,17 +565,88 @@ class DocxBuilder(UtilsMixin):
                     for paragraph in cell.paragraphs:
                         yield paragraph
     
+    _W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    _XML = 'http://www.w3.org/XML/1998/namespace'
+
     @classmethod
     def _replace_key(cls, paragraph, key: str, value: str):
         if key not in paragraph.text:
             return
+        # вытаскиваем параграф, копируем его стиль, клонируем (заменяя текст на подставляемые строки), вставляем за ним новые 
+        # делим текст по \n, заменяем плейсхолдер part[0] из оригинального параграфа, для каждой следующей строки
+        # глубокое копирование уже вставленного параграфа (сохранение стилей), удаление всех <w:t> тегов (текст)
+        # присоединяем за последним параграфом
+        parts = value.split('\n')
 
+        # Capture template text that follows the key (e.g. a trailing period),
+        # so it ends up on the LAST split paragraph, not the first.
+        para_text = paragraph.text
+        key_idx = para_text.find(key)
+        para_suffix = para_text[key_idx + len(key):] if key_idx >= 0 and len(parts) > 1 else ''
+
+        cls._do_replace(paragraph, key, parts[0])
+
+        if len(parts) > 1:
+            p_elem = paragraph._p
+
+            # Remove template suffix from first paragraph and save it.
+            suffix_runs = []
+            if para_suffix:
+                remaining = para_suffix
+                all_runs = p_elem.findall(f'.//{{{cls._W}}}r')
+                for r in reversed(all_runs):
+                    if not remaining:
+                        break
+                    t_list = r.findall(f'{{{cls._W}}}t')
+                    run_text = ''.join(t.text or '' for t in t_list)
+                    if run_text == remaining:
+                        suffix_runs.insert(0, deepcopy(r))
+                        r.getparent().remove(r)
+                        remaining = ''
+                    elif run_text.endswith(remaining):
+                        # suffix shares a run with parts[0] text — strip it
+                        new_text = run_text[:-len(remaining)]
+                        suffix_r = deepcopy(r)
+                        for t in suffix_r.findall(f'{{{cls._W}}}t'):
+                            t.getparent().remove(t)
+                        t_suf = suffix_r.makeelement(f'{{{cls._W}}}t')
+                        t_suf.text = remaining
+                        suffix_r.append(t_suf)
+                        suffix_runs.insert(0, suffix_r)
+                        for t in t_list:
+                            t.text = ''
+                        if t_list:
+                            t_list[0].text = new_text
+                        remaining = ''
+
+            prev_p = p_elem
+            for part in parts[1:]:
+                new_p = deepcopy(p_elem)
+                runs = new_p.findall(f'.//{{{cls._W}}}r')
+                for r in runs[1:]:
+                    r.getparent().remove(r)
+                if runs:
+                    for t in runs[0].findall(f'{{{cls._W}}}t'):
+                        t.getparent().remove(t)
+                    t_elem = runs[0].makeelement(f'{{{cls._W}}}t')
+                    t_elem.text = part
+                    if part != part.strip():
+                        t_elem.set(f'{{{cls._XML}}}space', 'preserve')
+                    runs[0].append(t_elem)
+                prev_p.addnext(new_p)
+                prev_p = new_p
+
+            # Restore suffix on last paragraph
+            for r in suffix_runs:
+                prev_p.append(r)
+
+    @classmethod
+    def _do_replace(cls, paragraph, key: str, value: str):
         replace_success = False
         for run in paragraph.runs:
             if key in run.text:
                 run.text = run.text.replace(key, value)
                 replace_success = True
-
         if not replace_success:
             cls._replace_broken_key(paragraph, key, value)
 

@@ -287,7 +287,7 @@ def add_region_detalization(info: Dict, data: List[Dict]):
             if value is None:
                 return False
             if len(value) > 0:
-                value = value.split(',')[-1]
+                value = value.split(',')[0]
             return mapper.get(value, value)
         
         tu = get_tick(row.get('tu_list'), tick_mapping)
